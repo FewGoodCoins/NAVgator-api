@@ -9,10 +9,9 @@ const supabase = createClient(
 const HELIUS_RPC = process.env.HELIUS_RPC_URL;
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
-// Derive the Associated Token Account address for USDC on a wallet
-// ATA = findProgramAddress([walletPubkey, TOKEN_PROGRAM, usdcMint], ATA_PROGRAM)
-// We'll use getTokenAccountsByOwner RPC to find it instead of deriving
+// Find the USDC token account for a wallet
 async function getUSDCATA(walletAddress) {
+  // Method 1: Standard RPC getTokenAccountsByOwner
   try {
     const res = await fetch(HELIUS_RPC, {
       method: 'POST',
@@ -25,8 +24,24 @@ async function getUSDCATA(walletAddress) {
     const json = await res.json();
     const accounts = json.result?.value || [];
     if (accounts.length > 0) return accounts[0].pubkey;
-    return null;
-  } catch (e) { return null; }
+  } catch (e) { console.error('ATA method 1 failed:', e.message); }
+
+  // Method 2: Helius DAS getTokenAccounts
+  try {
+    const res = await fetch(HELIUS_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'getTokenAccounts',
+        params: { owner: walletAddress, mint: USDC_MINT },
+      }),
+    });
+    const json = await res.json();
+    const accounts = json.result?.token_accounts || [];
+    if (accounts.length > 0) return accounts[0].address;
+  } catch (e) { console.error('ATA method 2 failed:', e.message); }
+
+  return null;
 }
 
 // Get all transaction signatures for a specific token account (USDC ATA)
@@ -108,9 +123,10 @@ async function parseTransactions(signatures, walletAddress) {
   return transfers;
 }
 
-async function getUSDCTransfers(walletAddress) {
+async function getUSDCTransfers(walletAddress, configATA) {
   // Step 1: Find the wallet's USDC token account
-  const usdcATA = await getUSDCATA(walletAddress);
+  // Use config value first, fall back to RPC lookup
+  let usdcATA = configATA || await getUSDCATA(walletAddress);
   if (!usdcATA) return { transfers: [], pagesScanned: 0, totalTxns: 0, ata: null };
 
   // Step 2: Get ALL signatures for just the USDC account (no noise from other tokens)
@@ -191,7 +207,7 @@ module.exports = async function handler(req, res) {
     const currentData = await fetchTokenData(tokenKey, token);
     
     // Step 2: Get all USDC transfers for DAO wallet
-    const result = await getUSDCTransfers(token.daoWallet);
+    const result = await getUSDCTransfers(token.daoWallet, token.daoUsdcATA);
     const transfers = result.transfers;
     
     if (transfers.length === 0) {
