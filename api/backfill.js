@@ -13,28 +13,63 @@ const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 async function getUSDCTransfers(walletAddress) {
   const transfers = [];
   let beforeSig = undefined;
+  let pagesScanned = 0;
+  let totalTxns = 0;
 
-  // Extract API key from RPC URL (format: https://mainnet.helius-rpc.com/?api-key=XXX)
-  const apiKey = HELIUS_RPC.includes('api-key=') 
-    ? HELIUS_RPC.split('api-key=')[1].split('&')[0]
-    : HELIUS_RPC.split('/').pop().split('?')[0];
+  // Extract API key from RPC URL 
+  // Handles: https://mainnet.helius-rpc.com/?api-key=XXX
+  // And: https://rpc.helius.xyz/?api-key=XXX
+  let apiKey = '';
+  const match = HELIUS_RPC.match(/api-key=([^&]+)/);
+  if (match) {
+    apiKey = match[1];
+  } else {
+    // Fallback: last path segment
+    apiKey = HELIUS_RPC.split('/').pop().split('?')[0];
+  }
 
-  // Page through all transactions, filter to TRANSFER type only
+  // Page through all transactions
   for (let page = 0; page < 100; page++) {
-    let endpoint = `https://api-mainnet.helius-rpc.com/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100&type=TRANSFER`;
+    let endpoint = `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100`;
     if (beforeSig) endpoint += `&before=${beforeSig}`;
 
     try {
       const res = await fetch(endpoint);
       if (!res.ok) {
-        console.error('Helius API error:', res.status, await res.text());
-        break;
+        // Try alternate domain
+        const altEndpoint = endpoint.replace('api.helius.xyz', 'api-mainnet.helius-rpc.com');
+        const altRes = await fetch(altEndpoint);
+        if (!altRes.ok) break;
+        const txns = await altRes.json();
+        if (!txns || txns.length === 0) break;
+        
+        for (const tx of txns) {
+          const tokenTransfers = tx.tokenTransfers || [];
+          for (const tt of tokenTransfers) {
+            if (tt.mint === USDC_MINT && (tt.fromUserAccount === walletAddress || tt.toUserAccount === walletAddress)) {
+              transfers.push({
+                signature: tx.signature,
+                timestamp: tx.timestamp,
+                date: new Date(tx.timestamp * 1000),
+                amount: tt.tokenAmount,
+                direction: tt.toUserAccount === walletAddress ? 'in' : 'out',
+                from: tt.fromUserAccount,
+                to: tt.toUserAccount,
+              });
+            }
+          }
+        }
+        beforeSig = txns[txns.length - 1].signature;
+        pagesScanned++;
+        totalTxns += txns.length;
+        await new Promise(r => setTimeout(r, 200));
+        continue;
       }
+
       const txns = await res.json();
       if (!txns || txns.length === 0) break;
 
       for (const tx of txns) {
-        // Look for USDC token transfers involving this wallet
         const tokenTransfers = tx.tokenTransfers || [];
         for (const tt of tokenTransfers) {
           if (tt.mint === USDC_MINT && (tt.fromUserAccount === walletAddress || tt.toUserAccount === walletAddress)) {
@@ -52,6 +87,8 @@ async function getUSDCTransfers(walletAddress) {
       }
 
       beforeSig = txns[txns.length - 1].signature;
+      pagesScanned++;
+      totalTxns += txns.length;
       
       // Rate limit
       await new Promise(r => setTimeout(r, 200));
@@ -63,7 +100,7 @@ async function getUSDCTransfers(walletAddress) {
 
   // Sort chronologically (oldest first)
   transfers.sort((a, b) => a.timestamp - b.timestamp);
-  return transfers;
+  return { transfers, pagesScanned, totalTxns };
 }
 
 // Reconstruct daily DAO USDC balance from transaction history
@@ -135,13 +172,17 @@ module.exports = async function handler(req, res) {
     const currentData = await fetchTokenData(tokenKey, token);
     
     // Step 2: Get all USDC transfers for DAO wallet
-    const transfers = await getUSDCTransfers(token.daoWallet);
+    const result = await getUSDCTransfers(token.daoWallet);
+    const transfers = result.transfers;
     
     if (transfers.length === 0) {
       return res.status(200).json({ 
         token: tokenKey, 
         message: 'No USDC transfers found for DAO wallet',
         daoWallet: token.daoWallet,
+        pagesScanned: result.pagesScanned,
+        totalTxnsScanned: result.totalTxns,
+        heliusKeyPrefix: HELIUS_RPC.substring(0, 30) + '...',
       });
     }
 
@@ -201,6 +242,8 @@ module.exports = async function handler(req, res) {
     res.status(200).json({
       token: tokenKey,
       transfers: transfers.length,
+      pagesScanned: result.pagesScanned,
+      totalTxnsScanned: result.totalTxns,
       daysReconstructed: Object.keys(dailyBalances).length,
       inserted,
       skipped,
