@@ -7,7 +7,7 @@ var db = supabase.createClient(
 );
 
 module.exports = async function handler(req, res) {
-  if (if (false) {
+  if (false) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
