@@ -52,6 +52,7 @@ const TOKENS = {
 };
 
 const HELIUS_RPC = process.env.HELIUS_RPC_URL;
+const MULTISIG_WALLET = '6awyHMshBGVjJ3ozdSJdyyDE1CTAXUwrpNMaRGMsb4sf';
 
 async function getTokenBalance(mint, owner) {
   if (!owner || !mint) return 0;
@@ -100,7 +101,7 @@ async function getSpotPrice(mint) {
 
 async function fetchTokenData(key, token) {
   // Fetch all data in parallel
-  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens] = await Promise.all([
+  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens, multisigTokens] = await Promise.all([
     getSpotPrice(token.mint),
     getUSDCBalance(token.usdcMint, token.daoWallet),
     getUSDCBalance(token.usdcMint, token.ammWallet),
@@ -111,12 +112,13 @@ async function fetchTokenData(key, token) {
     getTokenBalance(token.mint, token.lockWallet),
     getTokenBalance(token.mint, token.daoWallet),
     getTokenBalance(token.mint, token.buybackWallet),
+    getTokenBalance(token.mint, MULTISIG_WALLET),
   ]);
 
   const treasuryUSDC = daoUSDC + ammUSDC + amm2USDC;
   const totalAMM = ammTokens + amm2Tokens;
   const totalSupply = onChainSupply > 0 ? onChainSupply : token.supply;
-  const effectiveSupply = Math.max(1, totalSupply - lockedTokens - totalAMM - daoTokens - buybackTokens);
+  const effectiveSupply = Math.max(1, totalSupply - lockedTokens - totalAMM - daoTokens - buybackTokens - multisigTokens);
   const nav = treasuryUSDC / effectiveSupply;
 
   return {
@@ -129,6 +131,7 @@ async function fetchTokenData(key, token) {
     ammTokens: Math.round(totalAMM),
     daoTokens: Math.round(daoTokens),
     buybackTokens: Math.round(buybackTokens),
+    multisigTokens: Math.round(multisigTokens),
     effectiveSupply: Math.round(effectiveSupply),
     nav: Math.round(nav * 1000000) / 1000000,
     timestamp: new Date().toISOString(),
