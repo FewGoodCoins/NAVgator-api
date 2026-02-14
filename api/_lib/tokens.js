@@ -10,81 +10,66 @@ const TOKENS = {
     lockWallet: 'Bo24B7DDVtpa9VxZ4LN8FrAT7TM3cgkri41a5GjFg5Dk',
     supply: 10000000,
   },
-  zkfg: {
-    ticker: 'ZKFG', name: 'ZKLSOL',
-    mint: 'zkFGH8PVmBeMiF4gYhaEhU4do5ERFxjKUkJJaCKPWCo',
-    usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    daoWallet: '3N7WBu3yXGF3ryjcr1jxncAvfDrXATBCFzTR3Bnipaht',
-    ammWallet: 'Hwxq3p9gspPSefNZz4zBDCuEkiGE4m8TjKTjbhWo2bY4',
-    ammWallet2: '6tAmBnuMFPNTBps7hZ9BFcVThqToi5m89KxWJG5r2UyS',
-    supply: 10000000,
-  },
   umbra: {
     ticker: 'UMBRA', name: 'Umbra',
-    mint: 'UMBReKKMwQBDH7KGsXFmFuBmPkN5DuVzP4TDNqhAmeta',
+    mint: 'PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    daoWallet: 'AvWbGMXiiAFqHWnYhFJ3aCeMbusNRrnp8Mcpjrx6cmwN',
-    ammWallet: 'Aw7F7NAwq6bNE5kCcoMiMyKhfFBVxMi2htSRtpYBe5vu',
-    ammWallet2: '6yHTQiEd17SiE4Vz5FDKyYFxb2e3JKjCSnPr5qgzmeta',
+    daoWallet: '6VsC8PuKkXm5xo54c2vbrAaSfQipkpGHqNuKTxXFySx6',
+    ammWallet: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
+    ammWallet2: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
+    lockWallet: '3kX3EWm9iPB6oxFS2NJ71L6v5wzFZ8rQMEG6HC8QHJtF',
     supply: 10000000,
   },
   avici: {
     ticker: 'AVICI', name: 'Avicenna',
-    mint: 'AVCi9LaA7peg6EXZMzB2FT4NKPQQ6sUHLGRZWzmMmeta',
+    mint: 'BANKJmvhT8tiJRsBSS1n2HryMBPvT5Ze4HU95DUAmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    daoWallet: 'AwiX1WwCbYSFSi2Kh7g2F7gpVNAXueLswn1vp3sCgkVN',
-    ammWallet: '7yjBU1VyCYE3k5J6JMY5SYYidibTXq79Dd75ejPtmeta',
-    ammWallet2: 'NrLqk7Mgs2RmFPAuDNMHb6fNDnRzgM6V2rbQYBEmeta',
+    daoWallet: 'DGgYoUcu1aDZt4GEL5NQiducwHRGbkMWsUzsXh2j622G',
+    ammWallet: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
+    ammWallet2: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
     supply: 10000000,
-  },
-  loyal: {
-    ticker: 'LOYAL', name: 'Loyalty',
-    mint: 'LoYALbhBF7oba4Hdb16FpiGM3CZXCP5SE3JFNHJ5meta',
-    usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    daoWallet: 'DoEMPofR2EGLXkZZKaZR8BrvSCv5GYDPWC1ZthXvSLsF',
-    ammWallet: 'AKKnR72ASCC84Ty2qwqpGHwVzNBDLEKAGv5NeKi5meta',
-    ammWallet2: '8W9RfMDT5tyLg4KBsu67KVmq4bCEB68b5GFT4mVUmeta',
-    buybackWallet: 'BL1iGEJY41nYv1w6LNacYAA3DMhUPxEwC3UXP31pmeta',
-    supply: 40000000,
   },
   omfg: {
     ticker: 'OMFG', name: 'OMFG',
-    mint: 'OMFG7JJN15FPa3JBMQta4rc5h6TKZbR2gSLnBSmeta',
+    mint: 'omfgRBnxHsNJh6YeGbGAmWenNkenzsXyBXm3WDhmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    daoWallet: '6gTvy2YbF4rFiJ9sHT7qVMHeWcqU99Kx3gpQq9AGfmN2',
-    ammWallet: 'EMCgJCMpRRR1MZFBbEPaR9QYNWQER9bxCAq1Nxz5meta',
-    ammWallet2: '9J4qB6d7oRcF8rQ3HvYkLVKsGvSn3zaXpYs2XPNGmeta',
+    daoWallet: '34rned2SLUcYjUrM9meQkuyJY4QDBcKhkcUPXCgGuXD9',
+    ammWallet: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
+    ammWallet2: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
     supply: 10000000,
   },
   rngr: {
     ticker: 'RNGR', name: 'Ranger',
-    mint: 'RNGR7vFJpCNAvXFnmuAfcFBFNfxiRaZ1pkaRvHPmeta',
+    mint: 'RNGRtJMbCveqCp7AC6U95KmrdKecFckaJZiWbPGmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
-    daoWallet: '8ZYQ2xKZg4fW7p6hZ3d4vHw4Ey7WAkHFaELzABEbAJgg',
-    ammWallet: '4RhbWKsFGvJHmh9Z6875RixhDe3c6KRjCM7PkT9Vmeta',
-    ammWallet2: 'AikB1GPZY7LqHUSSj5x7KEV6rnRyEgd5DdJCAFpmeta',
-    buybackWallet: 'RPTAxECvv3PB53a3GQE3Bwhsa3xtBNRyJfLLq3Pmeta',
+    daoWallet: '55H1Q1YrHJQ93uhG4jqrBBHx3a8H7TCM8kvf2UM2g5q3',
+    ammWallet: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
+    ammWallet2: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
+    buybackWallet: '33AEddb7BxoA7Y65BzybFCV5WyGy7LfBdjiL2anCDEkr',
+    lockWallet: 'F35JE1HZMtZXXWdy3koSPRe1gGFQyqd5kpbPw2xNcjR8',
     supply: 25000000,
   },
 };
 
-const HELIUS_RPC = process.env.HELIUS_RPC_URL;
+var HELIUS_RPC = process.env.HELIUS_RPC_URL;
 
 async function getTokenBalance(mint, owner) {
   if (!owner || !mint) return 0;
   try {
-    const res = await fetch(HELIUS_RPC, {
+    var res = await fetch(HELIUS_RPC, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner',
-        params: [owner, { mint }, { encoding: 'jsonParsed' }],
+        params: [owner, { mint: mint }, { encoding: 'jsonParsed' }],
       }),
     });
-    const json = await res.json();
-    let total = 0;
-    for (const acct of (json.result?.value || [])) {
-      total += acct.account?.data?.parsed?.info?.tokenAmount?.uiAmount || 0;
+    var json = await res.json();
+    var total = 0;
+    var accounts = (json.result && json.result.value) ? json.result.value : [];
+    for (var i = 0; i < accounts.length; i++) {
+      var amt = accounts[i].account && accounts[i].account.data && accounts[i].account.data.parsed && accounts[i].account.data.parsed.info && accounts[i].account.data.parsed.info.tokenAmount;
+      if (amt) total += amt.uiAmount || 0;
     }
     return total;
   } catch (e) { return 0; }
@@ -96,21 +81,21 @@ async function getUSDCBalance(usdcMint, owner) {
 
 async function getOnChainSupply(mint) {
   try {
-    const res = await fetch(HELIUS_RPC, {
+    var res = await fetch(HELIUS_RPC, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'getTokenSupply', params: [mint] }),
     });
-    const json = await res.json();
-    return parseFloat(json?.result?.value?.uiAmount || 0);
+    var json = await res.json();
+    return parseFloat((json.result && json.result.value && json.result.value.uiAmount) || 0);
   } catch (e) { return 0; }
 }
 
 async function getSpotPrice(mint) {
   try {
-    const res = await fetch('https://api.dexscreener.com/latest/dex/tokens/' + mint);
-    const data = await res.json();
-    const pair = data.pairs ? data.pairs.find(function(p) { return p.quoteToken && p.quoteToken.symbol === 'USDC'; }) : null;
+    var res = await fetch('https://api.dexscreener.com/latest/dex/tokens/' + mint);
+    var data = await res.json();
+    var pair = data.pairs ? data.pairs.find(function(p) { return p.quoteToken && p.quoteToken.symbol === 'USDC'; }) : null;
     return pair ? parseFloat(pair.priceUsd) : 0;
   } catch (e) { return 0; }
 }
