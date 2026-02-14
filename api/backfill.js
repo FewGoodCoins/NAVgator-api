@@ -62,6 +62,12 @@ async function getSignaturesForAccount(accountAddress) {
         }),
       });
       const json = await res.json();
+      
+      if (json.error) {
+        console.error('RPC error:', JSON.stringify(json.error));
+        break;
+      }
+      
       const sigs = json.result || [];
       if (sigs.length === 0) break;
 
@@ -69,7 +75,10 @@ async function getSignaturesForAccount(accountAddress) {
       beforeSig = sigs[sigs.length - 1].signature;
 
       await new Promise(r => setTimeout(r, 200));
-    } catch (e) { break; }
+    } catch (e) {
+      console.error('Sig fetch error:', e.message);
+      break;
+    }
   }
 
   return allSigs;
@@ -211,12 +220,32 @@ module.exports = async function handler(req, res) {
     const transfers = result.transfers;
     
     if (transfers.length === 0) {
+      // Debug: try a direct getSignaturesForAddress call to see what comes back
+      let debugSigs = 0;
+      let debugError = null;
+      try {
+        const debugRes = await fetch(HELIUS_RPC, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 1, method: 'getSignaturesForAddress',
+            params: [result.ata, { limit: 5 }],
+          }),
+        });
+        const debugJson = await debugRes.json();
+        debugSigs = debugJson.result?.length || 0;
+        debugError = debugJson.error || null;
+      } catch (e) { debugError = e.message; }
+
       return res.status(200).json({ 
         token: tokenKey, 
         message: 'No USDC transfers found for DAO wallet',
         daoWallet: token.daoWallet,
         usdcATA: result.ata,
         totalTxnsScanned: result.totalTxns,
+        debugSigsForATA: debugSigs,
+        debugError,
+        heliusRpcPrefix: HELIUS_RPC.substring(0, 40) + '...',
       });
     }
 
