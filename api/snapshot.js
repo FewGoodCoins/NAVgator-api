@@ -1,46 +1,53 @@
-var supabase = require('@supabase/supabase-js');
-var tokens = require('./_lib/tokens');
+const { createClient } = require('@supabase/supabase-js');
+const { TOKENS, fetchTokenData } = require('./_lib/tokens');
 
-var db = supabase.createClient(
+const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_KEY
 );
 
 module.exports = async function handler(req, res) {
-if (req.headers.authorization !== 'Bearer ' + process.env.CRON_SECRET) {
+  // Verify cron secret in production (Vercel sends this header)
+  if (req.headers.authorization !== `Bearer ${process.env.CRON_SECRET}` && process.env.NODE_ENV === 'production') {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    var results = [];
-    var errors = [];
-    var entries = Object.entries(tokens.TOKENS);
+    const results = [];
+    const errors = [];
 
-    for (var i = 0; i < entries.length; i++) {
-      var key = entries[i][0];
-      var token = entries[i][1];
+    // Fetch all tokens sequentially to avoid rate limits
+    for (const [key, token] of Object.entries(TOKENS)) {
       try {
-        var data = await tokens.fetchTokenData(key, token);
+        const data = await fetchTokenData(key, token);
         results.push(data);
 
-        var insertResult = await db.from('nav_snapshots').insert({
+        // Insert snapshot into Supabase
+        const { error } = await supabase.from('nav_snapshots').insert({
           token: key,
           spot: data.spot,
           treasury_usdc: data.treasuryUSDC,
           on_chain_supply: data.onChainSupply,
           locked_tokens: data.lockedTokens,
           amm_tokens: data.ammTokens,
+          dao_tokens: data.daoTokens,
+          buyback_tokens: data.buybackTokens,
+          multisig_tokens: data.multisigTokens,
+          investor_locked: data.investorLocked,
+          meteora_pool_usdc: data.meteoraPoolUSDC,
+          meteora_pool_tokens: data.meteoraPoolTokens,
           effective_supply: data.effectiveSupply,
           nav: data.nav,
           snapshot_time: data.timestamp,
         });
 
-        if (insertResult.error) errors.push({ token: key, error: insertResult.error.message });
+        if (error) errors.push({ token: key, error: error.message });
       } catch (e) {
         errors.push({ token: key, error: e.message });
       }
 
-      await new Promise(function(r) { setTimeout(r, 3000); });
+      // Small delay between tokens to avoid rate limits
+      await new Promise(r => setTimeout(r, 500));
     }
 
     res.status(200).json({
