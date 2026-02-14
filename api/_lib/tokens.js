@@ -48,6 +48,7 @@ const TOKENS = {
     buybackWallet: '33AEddb7BxoA7Y65BzybFCV5WyGy7LfBdjiL2anCDEkr',
     lockWallet: 'F35JE1HZMtZXXWdy3koSPRe1gGFQyqd5kpbPw2xNcjR8',
     supply: 25000000,
+    investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
   },
 };
 
@@ -118,7 +119,17 @@ async function fetchTokenData(key, token) {
   const treasuryUSDC = daoUSDC + ammUSDC + amm2USDC;
   const totalAMM = ammTokens + amm2Tokens;
   const totalSupply = onChainSupply > 0 ? onChainSupply : token.supply;
-  const effectiveSupply = Math.max(1, totalSupply - lockedTokens - totalAMM - daoTokens - buybackTokens - multisigTokens);
+
+  // Calculate still-locked investor tokens (monthly unlock, assume sold on unlock)
+  let investorLocked = 0;
+  if (token.investorVesting) {
+    const v = token.investorVesting;
+    const monthsElapsed = Math.floor((Date.now() - new Date(v.tge).getTime()) / (30.44 * 24 * 60 * 60 * 1000));
+    const unlocked = Math.min(v.total, (v.total / v.months) * Math.min(monthsElapsed, v.months));
+    investorLocked = Math.max(0, v.total - unlocked);
+  }
+
+  const effectiveSupply = Math.max(1, totalSupply - lockedTokens - totalAMM - daoTokens - buybackTokens - multisigTokens - investorLocked);
   const nav = treasuryUSDC / effectiveSupply;
 
   return {
@@ -132,6 +143,7 @@ async function fetchTokenData(key, token) {
     daoTokens: Math.round(daoTokens),
     buybackTokens: Math.round(buybackTokens),
     multisigTokens: Math.round(multisigTokens),
+    investorLocked: Math.round(investorLocked),
     effectiveSupply: Math.round(effectiveSupply),
     nav: Math.round(nav * 1000000) / 1000000,
     timestamp: new Date().toISOString(),
