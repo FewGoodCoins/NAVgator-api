@@ -9,65 +9,77 @@ const supabase = createClient(
 const HELIUS_RPC = process.env.HELIUS_RPC_URL;
 const USDC_MINT = 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v';
 
-// Fetch all USDC transfer signatures for a wallet using Helius enhanced API
-async function getUSDCTransfers(walletAddress) {
-  const transfers = [];
-  let beforeSig = undefined;
-  let pagesScanned = 0;
-  let totalTxns = 0;
+// Derive the Associated Token Account address for USDC on a wallet
+// ATA = findProgramAddress([walletPubkey, TOKEN_PROGRAM, usdcMint], ATA_PROGRAM)
+// We'll use getTokenAccountsByOwner RPC to find it instead of deriving
+async function getUSDCATA(walletAddress) {
+  try {
+    const res = await fetch(HELIUS_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'getTokenAccountsByOwner',
+        params: [walletAddress, { mint: USDC_MINT }, { encoding: 'jsonParsed' }],
+      }),
+    });
+    const json = await res.json();
+    const accounts = json.result?.value || [];
+    if (accounts.length > 0) return accounts[0].pubkey;
+    return null;
+  } catch (e) { return null; }
+}
 
-  // Extract API key from RPC URL 
-  // Handles: https://mainnet.helius-rpc.com/?api-key=XXX
-  // And: https://rpc.helius.xyz/?api-key=XXX
-  let apiKey = '';
-  const match = HELIUS_RPC.match(/api-key=([^&]+)/);
-  if (match) {
-    apiKey = match[1];
-  } else {
-    // Fallback: last path segment
-    apiKey = HELIUS_RPC.split('/').pop().split('?')[0];
+// Get all transaction signatures for a specific token account (USDC ATA)
+async function getSignaturesForAccount(accountAddress) {
+  const allSigs = [];
+  let beforeSig = undefined;
+
+  for (let page = 0; page < 50; page++) {
+    try {
+      const params = [accountAddress, { limit: 1000 }];
+      if (beforeSig) params[1].before = beforeSig;
+
+      const res = await fetch(HELIUS_RPC, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'getSignaturesForAddress', params,
+        }),
+      });
+      const json = await res.json();
+      const sigs = json.result || [];
+      if (sigs.length === 0) break;
+
+      allSigs.push(...sigs.map(s => s.signature));
+      beforeSig = sigs[sigs.length - 1].signature;
+
+      await new Promise(r => setTimeout(r, 200));
+    } catch (e) { break; }
   }
 
-  // Page through all transactions
-  for (let page = 0; page < 100; page++) {
-    let endpoint = `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100`;
-    if (beforeSig) endpoint += `&before=${beforeSig}`;
+  return allSigs;
+}
 
+// Parse transaction signatures using Helius enhanced API to get USDC transfer details
+async function parseTransactions(signatures, walletAddress) {
+  const transfers = [];
+  
+  let apiKey = '';
+  const match = HELIUS_RPC.match(/api-key=([^&]+)/);
+  if (match) apiKey = match[1];
+  else apiKey = HELIUS_RPC.split('/').pop().split('?')[0];
+
+  // Process in batches of 100 (Helius limit)
+  for (let i = 0; i < signatures.length; i += 100) {
+    const batch = signatures.slice(i, i + 100);
     try {
-      const res = await fetch(endpoint);
-      if (!res.ok) {
-        // Try alternate domain
-        const altEndpoint = endpoint.replace('api.helius.xyz', 'api-mainnet.helius-rpc.com');
-        const altRes = await fetch(altEndpoint);
-        if (!altRes.ok) break;
-        const txns = await altRes.json();
-        if (!txns || txns.length === 0) break;
-        
-        for (const tx of txns) {
-          const tokenTransfers = tx.tokenTransfers || [];
-          for (const tt of tokenTransfers) {
-            if (tt.mint === USDC_MINT && (tt.fromUserAccount === walletAddress || tt.toUserAccount === walletAddress)) {
-              transfers.push({
-                signature: tx.signature,
-                timestamp: tx.timestamp,
-                date: new Date(tx.timestamp * 1000),
-                amount: tt.tokenAmount,
-                direction: tt.toUserAccount === walletAddress ? 'in' : 'out',
-                from: tt.fromUserAccount,
-                to: tt.toUserAccount,
-              });
-            }
-          }
-        }
-        beforeSig = txns[txns.length - 1].signature;
-        pagesScanned++;
-        totalTxns += txns.length;
-        await new Promise(r => setTimeout(r, 200));
-        continue;
-      }
-
+      const res = await fetch(`https://api.helius.xyz/v0/transactions?api-key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transactions: batch }),
+      });
+      if (!res.ok) continue;
       const txns = await res.json();
-      if (!txns || txns.length === 0) break;
 
       for (const tx of txns) {
         const tokenTransfers = tx.tokenTransfers || [];
@@ -86,21 +98,28 @@ async function getUSDCTransfers(walletAddress) {
         }
       }
 
-      beforeSig = txns[txns.length - 1].signature;
-      pagesScanned++;
-      totalTxns += txns.length;
-      
-      // Rate limit
-      await new Promise(r => setTimeout(r, 200));
+      await new Promise(r => setTimeout(r, 300));
     } catch (e) {
-      console.error('Helius fetch error:', e.message);
-      break;
+      console.error('Parse error:', e.message);
     }
   }
 
-  // Sort chronologically (oldest first)
   transfers.sort((a, b) => a.timestamp - b.timestamp);
-  return { transfers, pagesScanned, totalTxns };
+  return transfers;
+}
+
+async function getUSDCTransfers(walletAddress) {
+  // Step 1: Find the wallet's USDC token account
+  const usdcATA = await getUSDCATA(walletAddress);
+  if (!usdcATA) return { transfers: [], pagesScanned: 0, totalTxns: 0, ata: null };
+
+  // Step 2: Get ALL signatures for just the USDC account (no noise from other tokens)
+  const signatures = await getSignaturesForAccount(usdcATA);
+
+  // Step 3: Parse those signatures with Helius to get transfer details
+  const transfers = await parseTransactions(signatures, walletAddress);
+
+  return { transfers, pagesScanned: 0, totalTxns: signatures.length, ata: usdcATA };
 }
 
 // Reconstruct daily DAO USDC balance from transaction history
@@ -180,9 +199,8 @@ module.exports = async function handler(req, res) {
         token: tokenKey, 
         message: 'No USDC transfers found for DAO wallet',
         daoWallet: token.daoWallet,
-        pagesScanned: result.pagesScanned,
+        usdcATA: result.ata,
         totalTxnsScanned: result.totalTxns,
-        heliusKeyPrefix: HELIUS_RPC.substring(0, 30) + '...',
       });
     }
 
