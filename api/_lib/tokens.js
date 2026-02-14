@@ -39,6 +39,7 @@ const TOKENS = {
     mint: 'omfgRBnxHsNJh6YeGbGAmWenNkenzsXyBXm3WDhmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     daoWallet: '34rned2SLUcYjUrM9meQkuyJY4QDBcKhkcUPXCgGuXD9',
+    daoUsdcATA: 'Ax6Y8vi4BwoEPjkJp1AkB6RkunEAzF1J356bRrCEJQPf',
     ammWallet: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
     ammWallet2: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
     gtPool: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
