@@ -40,7 +40,7 @@ module.exports = async function handler(req, res) {
         errors.push({ token: key, error: e.message });
       }
 
-      await new Promise(function(r) { setTimeout(r, 500); });
+      await new Promise(function(r) { setTimeout(r, 3000); });
     }
 
     res.status(200).json({
