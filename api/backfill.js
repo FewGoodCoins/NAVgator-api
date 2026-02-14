@@ -14,23 +14,22 @@ async function getUSDCTransfers(walletAddress) {
   const transfers = [];
   let beforeSig = undefined;
 
-  // Page through all transactions
-  for (let page = 0; page < 50; page++) {
-    const url = HELIUS_RPC.replace('/v0/', '/v0/addresses/') 
-      ? `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${HELIUS_RPC.split('api-key=')[1] || HELIUS_RPC.split('/').pop()}`
-      : HELIUS_RPC;
-    
-    // Use Helius parsed transaction history
-    const apiKey = HELIUS_RPC.includes('api-key=') 
-      ? HELIUS_RPC.split('api-key=')[1] 
-      : HELIUS_RPC.split('/').pop().split('?')[0];
-    
-    let endpoint = `https://api.helius.xyz/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100`;
+  // Extract API key from RPC URL (format: https://mainnet.helius-rpc.com/?api-key=XXX)
+  const apiKey = HELIUS_RPC.includes('api-key=') 
+    ? HELIUS_RPC.split('api-key=')[1].split('&')[0]
+    : HELIUS_RPC.split('/').pop().split('?')[0];
+
+  // Page through all transactions, filter to TRANSFER type only
+  for (let page = 0; page < 100; page++) {
+    let endpoint = `https://api-mainnet.helius-rpc.com/v0/addresses/${walletAddress}/transactions?api-key=${apiKey}&limit=100&type=TRANSFER`;
     if (beforeSig) endpoint += `&before=${beforeSig}`;
 
     try {
       const res = await fetch(endpoint);
-      if (!res.ok) break;
+      if (!res.ok) {
+        console.error('Helius API error:', res.status, await res.text());
+        break;
+      }
       const txns = await res.json();
       if (!txns || txns.length === 0) break;
 
