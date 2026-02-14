@@ -8,6 +8,7 @@ const TOKENS = {
     ammWallet: 'DzYtzoNvPbyFCzwZA6cSm9eDEEmxEB9f8AGkJXUXgnSA',
     ammWallet2: '2zsbECzM7roqnDcuv2TNGpfv5PAnuqGmMo5YPtqmUz5p',
     lockWallet: 'Bo24B7DDVtpa9VxZ4LN8FrAT7TM3cgkri41a5GjFg5Dk',
+    gtPool: 'o5rJFXSKTsuws58rBMNPG8jdKdnY4Z7ouU29dyohE4g',
     supply: 10000000,
   },
   umbra: {
@@ -18,6 +19,8 @@ const TOKENS = {
     ammWallet: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
     ammWallet2: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
     lockWallet: '3kX3EWm9iPB6oxFS2NJ71L6v5wzFZ8rQMEG6HC8QHJtF',
+    gtPool: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
+    gtPoolLegacy: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
     supply: 10000000,
   },
   avici: {
@@ -27,6 +30,8 @@ const TOKENS = {
     daoWallet: 'DGgYoUcu1aDZt4GEL5NQiducwHRGbkMWsUzsXh2j622G',
     ammWallet: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
     ammWallet2: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
+    gtPool: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
+    gtPoolLegacy: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
     supply: 10000000,
   },
   omfg: {
@@ -36,6 +41,8 @@ const TOKENS = {
     daoWallet: '34rned2SLUcYjUrM9meQkuyJY4QDBcKhkcUPXCgGuXD9',
     ammWallet: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
     ammWallet2: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
+    gtPool: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
+    gtPoolLegacy: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
     supply: 10000000,
   },
   rngr: {
@@ -47,6 +54,8 @@ const TOKENS = {
     ammWallet2: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
     buybackWallet: '33AEddb7BxoA7Y65BzybFCV5WyGy7LfBdjiL2anCDEkr',
     lockWallet: 'F35JE1HZMtZXXWdy3koSPRe1gGFQyqd5kpbPw2xNcjR8',
+    gtPool: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
+    gtPoolLegacy: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
     supply: 25000000,
     investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
   },
@@ -100,9 +109,34 @@ async function getSpotPrice(mint) {
   } catch (e) { return 0; }
 }
 
+// Fetch Meteora DLMM pool reserves (USDC + token amounts) via their public API
+async function getMeteoraPoolReserves(poolAddress, tokenMint, usdcMint) {
+  if (!poolAddress) return { usdc: 0, token: 0 };
+  try {
+    const res = await fetch(`https://dlmm-api.meteora.ag/pair/${poolAddress}`);
+    if (!res.ok) return { usdc: 0, token: 0 };
+    const data = await res.json();
+    // Determine which reserve is USDC and which is the token
+    // mint_x and mint_y tell us the token order, reserve_x_amount and reserve_y_amount are raw integers
+    let usdc = 0, token = 0;
+    const mintX = data.mint_x;
+    const mintY = data.mint_y;
+    const resX = parseInt(data.reserve_x_amount || '0');
+    const resY = parseInt(data.reserve_y_amount || '0');
+    if (mintX === usdcMint) {
+      usdc = resX / 1e6; // USDC has 6 decimals
+      token = resY / 1e6; // MetaDAO tokens also 6 decimals
+    } else if (mintY === usdcMint) {
+      usdc = resY / 1e6;
+      token = resX / 1e6;
+    }
+    return { usdc, token };
+  } catch (e) { return { usdc: 0, token: 0 }; }
+}
+
 async function fetchTokenData(key, token) {
-  // Fetch all data in parallel
-  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens, multisigTokens] = await Promise.all([
+  // Fetch all data in parallel — include Meteora pool reserves
+  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens, multisigTokens, meteoraPool, meteoraPoolLegacy] = await Promise.all([
     getSpotPrice(token.mint),
     getUSDCBalance(token.usdcMint, token.daoWallet),
     getUSDCBalance(token.usdcMint, token.ammWallet),
@@ -114,10 +148,24 @@ async function fetchTokenData(key, token) {
     getTokenBalance(token.mint, token.daoWallet),
     getTokenBalance(token.mint, token.buybackWallet),
     getTokenBalance(token.mint, MULTISIG_WALLET),
+    getMeteoraPoolReserves(token.gtPool, token.mint, token.usdcMint),
+    getMeteoraPoolReserves(token.gtPoolLegacy, token.mint, token.usdcMint),
   ]);
 
-  const treasuryUSDC = daoUSDC + ammUSDC + amm2USDC;
-  const totalAMM = ammTokens + amm2Tokens;
+  // Treasury USDC = DAO wallet + Meteora pool USDC reserves
+  // The ammWallet/ammWallet2 RPC calls may return 0 for Meteora pools since USDC
+  // is held by the pool program, not the pool address. Meteora API gives accurate reserves.
+  // Use the higher of RPC balance vs Meteora reserve to avoid double-counting
+  const poolUSDC = meteoraPool.usdc + meteoraPoolLegacy.usdc;
+  const rpcAmmUSDC = ammUSDC + amm2USDC;
+  const ammUSDCFinal = Math.max(poolUSDC, rpcAmmUSDC);
+  const treasuryUSDC = daoUSDC + ammUSDCFinal;
+
+  // AMM tokens from Meteora pool reserves (tokens locked in pool, not eligible for NAV)
+  const poolTokens = meteoraPool.token + meteoraPoolLegacy.token;
+  const rpcAmmTokens = ammTokens + amm2Tokens;
+  const totalAMM = Math.max(poolTokens, rpcAmmTokens);
+
   const totalSupply = onChainSupply > 0 ? onChainSupply : token.supply;
 
   // Calculate still-locked investor tokens (monthly unlock, assume sold on unlock)
@@ -146,6 +194,8 @@ async function fetchTokenData(key, token) {
     investorLocked: Math.round(investorLocked),
     effectiveSupply: Math.round(effectiveSupply),
     nav: Math.round(nav * 1000000) / 1000000,
+    meteoraPoolUSDC: Math.round(poolUSDC * 100) / 100,
+    meteoraPoolTokens: Math.round(poolTokens),
     timestamp: new Date().toISOString(),
   };
 }
