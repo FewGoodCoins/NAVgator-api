@@ -35,7 +35,7 @@ module.exports = async function handler(req, res) {
 
     // Cache for 5 minutes
     res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
-    res.status(200).json(data);
+    res.status(200).json({ ...data, _debug: { url, mint, tf: birdeyeTF, items: data.data?.items?.length || 0 } });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
