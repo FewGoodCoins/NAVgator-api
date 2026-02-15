@@ -20,6 +20,13 @@ module.exports = async function handler(req, res) {
     for (const [key, token] of Object.entries(TOKENS)) {
       try {
         const data = await fetchTokenData(key, token);
+
+        // Sanity check: skip saving if treasury looks wrong (RPC failure, rate limit, etc.)
+        if (data.treasuryUSDC < 100 || data.nav < 0.001 || !data.effectiveSupply) {
+          errors.push({ token: key, error: 'Skipped: bad data (treasury=$' + data.treasuryUSDC.toFixed(2) + ', nav=' + data.nav.toFixed(6) + ')' });
+          continue;
+        }
+
         results.push(data);
 
         // Insert snapshot into Supabase
