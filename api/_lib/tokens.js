@@ -1,14 +1,24 @@
 // Shared token configuration and data fetching utilities
+// Field naming:
+//   daoWallet     = DAO treasury wallet (holds USDC + sometimes tokens)
+//   futAmm        = Futarchy AMM vault (holds tokens + USDC for governance market)
+//   metAmm        = Meteora AMM token vault (holds project tokens in DLMM pool)
+//   teamLocked    = Team performance lock wallet (locked until price milestones)
+//   pubMetPool    = Project's public Meteora DLMM pool address
+//   pubMetPoolLegacy = Legacy Meteora pool (if migrated)
+//   metaHolding   = MetaDAO multisig treasury (not eligible for NAV redemption)
+
 const TOKENS = {
   solo: {
     ticker: 'SOLO', name: 'Solomon',
     mint: 'SoLo9oxzLDpcq1dpqAgMwgce5WqkRDtNXK7EPnbmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     daoWallet: '98SPcyUZ2rqM2dgjCqqSXS4gJrNTLSNUAAVCF38xYj9u',
-    ammWallet: 'DzYtzoNvPbyFCzwZA6cSm9eDEEmxEB9f8AGkJXUXgnSA',
-    ammWallet2: 'FWyVZjMDT65bDCtHTmko7xStTWw5VmHc4n2jhQLBQKbx',
-    lockWallet: 'Bo24B7DDVtpa9VxZ4LN8FrAT7TM3cgkri41a5GjFg5Dk',
-    meteoraPool: '2zsbECzM7roqnDcuv2TNGpfv5PAnuqGmMo5YPtqmUz5p',
+    futAmm: 'DzYtzoNvPbyFCzwZA6cSm9eDEEmxEB9f8AGkJXUXgnSA',
+    metAmm: 'HaFkQ6qEYzU7fXxSdMgLJH9LQ2piNa58WpbK8uyLRL1e',
+    metAmmUsdc: '6suP5vppzxwp141dSguWLeVeeKzBYpS8iuWNM3SqmBmh',
+    teamLocked: 'Bo24B7DDVtpa9VxZ4LN8FrAT7TM3cgkri41a5GjFg5Dk',
+    pubMetPool: '2zsbECzM7roqnDcuv2TNGpfv5PAnuqGmMo5YPtqmUz5p',
     supply: 10000000,
     raise: 8000000, tge: '2025-11-18', icoPrice: 0.80,
     monthlyAllowance: 100000,
@@ -18,11 +28,11 @@ const TOKENS = {
     mint: 'PRVT6TB7uss3FrUd2D9xs2zqDBsa3GbMJMwCQsgmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     daoWallet: '6VsC8PuKkXm5xo54c2vbrAaSfQipkpGHqNuKTxXFySx6',
-    ammWallet: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
-    ammWallet2: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
-    lockWallet: '3kX3EWm9iPB6oxFS2NJ71L6v5wzFZ8rQMEG6HC8QHJtF',
-    meteoraPool: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
-    meteoraPoolLegacy: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
+    futAmm: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
+    metAmm: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
+    teamLocked: '3kX3EWm9iPB6oxFS2NJ71L6v5wzFZ8rQMEG6HC8QHJtF',
+    pubMetPool: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
+    pubMetPoolLegacy: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
     supply: 10000000,
     raise: 4000000, tge: '2025-10-10', icoPrice: 0.40,
     monthlyAllowance: 100000,
@@ -32,10 +42,10 @@ const TOKENS = {
     mint: 'BANKJmvhT8tiJRsBSS1n2HryMBPvT5Ze4HU95DUAmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     daoWallet: 'DGgYoUcu1aDZt4GEL5NQiducwHRGbkMWsUzsXh2j622G',
-    ammWallet: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
-    ammWallet2: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
-    meteoraPool: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
-    meteoraPoolLegacy: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
+    futAmm: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
+    metAmm: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
+    pubMetPool: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
+    pubMetPoolLegacy: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
     supply: 10000000,
     raise: 3500000, tge: '2025-10-18', icoPrice: 0.35,
     monthlyAllowance: 100000,
@@ -46,10 +56,10 @@ const TOKENS = {
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     daoWallet: '34rned2SLUcYjUrM9meQkuyJY4QDBcKhkcUPXCgGuXD9',
     daoUsdcATA: 'Ax6Y8vi4BwoEPjkJp1AkB6RkunEAzF1J356bRrCEJQPf',
-    ammWallet: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
-    ammWallet2: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
-    meteoraPool: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
-    meteoraPoolLegacy: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
+    futAmm: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
+    metAmm: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
+    pubMetPool: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
+    pubMetPoolLegacy: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
     supply: 10000000,
     raise: 500000, tge: '2025-07-28', icoPrice: 0.05,
     monthlyAllowance: 50000,
@@ -59,12 +69,12 @@ const TOKENS = {
     mint: 'RNGRtJMbCveqCp7AC6U95KmrdKecFckaJZiWbPGmeta',
     usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
     daoWallet: '55H1Q1YrHJQ93uhG4jqrBBHx3a8H7TCM8kvf2UM2g5q3',
-    ammWallet: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
-    ammWallet2: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
+    futAmm: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
+    metAmm: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
     buybackWallet: '33AEddb7BxoA7Y65BzybFCV5WyGy7LfBdjiL2anCDEkr',
-    lockWallet: 'F35JE1HZMtZXXWdy3koSPRe1gGFQyqd5kpbPw2xNcjR8',
-    meteoraPool: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
-    meteoraPoolLegacy: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
+    teamLocked: 'F35JE1HZMtZXXWdy3koSPRe1gGFQyqd5kpbPw2xNcjR8',
+    pubMetPool: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
+    pubMetPoolLegacy: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
     supply: 25000000,
     raise: 6000000, tge: '2026-01-10', icoPrice: 0.54,
     investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
@@ -73,7 +83,7 @@ const TOKENS = {
 };
 
 const HELIUS_RPC = process.env.HELIUS_RPC_URL;
-const MULTISIG_WALLET = '6awyHMshBGVjJ3ozdSJdyyDE1CTAXUwrpNMaRGMsb4sf';
+const META_HOLDING = '6awyHMshBGVjJ3ozdSJdyyDE1CTAXUwrpNMaRGMsb4sf';
 
 async function getTokenBalance(mint, owner) {
   if (!owner || !mint) return 0;
@@ -144,16 +154,14 @@ async function getMeteoraPoolReserves(poolAddress, tokenMint, usdcMint) {
     const res = await fetch(`https://dlmm-api.meteora.ag/pair/${poolAddress}`);
     if (!res.ok) return { usdc: 0, token: 0 };
     const data = await res.json();
-    // Determine which reserve is USDC and which is the token
-    // mint_x and mint_y tell us the token order, reserve_x_amount and reserve_y_amount are raw integers
     let usdc = 0, token = 0;
     const mintX = data.mint_x;
     const mintY = data.mint_y;
     const resX = parseInt(data.reserve_x_amount || '0');
     const resY = parseInt(data.reserve_y_amount || '0');
     if (mintX === usdcMint) {
-      usdc = resX / 1e6; // USDC has 6 decimals
-      token = resY / 1e6; // MetaDAO tokens also 6 decimals
+      usdc = resX / 1e6;
+      token = resY / 1e6;
     } else if (mintY === usdcMint) {
       usdc = resY / 1e6;
       token = resX / 1e6;
@@ -163,41 +171,35 @@ async function getMeteoraPoolReserves(poolAddress, tokenMint, usdcMint) {
 }
 
 async function fetchTokenData(key, token) {
-  // Fetch all data in parallel — include Meteora pool reserves
-  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens, multisigTokens, meteoraPool, meteoraPoolLegacy, amm2VaultTokens] = await Promise.all([
+  // Fetch all data in parallel
+  const [spot, daoUSDC, futAmmUSDC, onChainSupply, futAmmTokens, metAmmTokens, metAmmUSDC, lockedTokens, daoTokens, buybackTokens, metaHoldingTokens, metPool, metPoolLegacy] = await Promise.all([
     getSpotPrice(token.mint),
     getUSDCBalance(token.usdcMint, token.daoWallet),
-    getUSDCBalance(token.usdcMint, token.ammWallet),
-    getUSDCBalance(token.usdcMint, token.ammWallet2),
+    getUSDCBalance(token.usdcMint, token.futAmm),
     getOnChainSupply(token.mint),
-    getTokenBalance(token.mint, token.ammWallet),
-    getTokenBalance(token.mint, token.ammWallet2),
-    getTokenBalance(token.mint, token.lockWallet),
+    getTokenBalance(token.mint, token.futAmm),
+    getVaultBalance(token.metAmm),
+    getVaultBalance(token.metAmmUsdc),
+    getTokenBalance(token.mint, token.teamLocked),
     getTokenBalance(token.mint, token.daoWallet),
     getTokenBalance(token.mint, token.buybackWallet),
-    getTokenBalance(token.mint, MULTISIG_WALLET),
-    getMeteoraPoolReserves(token.meteoraPool, token.mint, token.usdcMint),
-    getMeteoraPoolReserves(token.meteoraPoolLegacy, token.mint, token.usdcMint),
-    getVaultBalance(token.ammWallet2),
+    getTokenBalance(token.mint, META_HOLDING),
+    getMeteoraPoolReserves(token.pubMetPool, token.mint, token.usdcMint),
+    getMeteoraPoolReserves(token.pubMetPoolLegacy, token.mint, token.usdcMint),
   ]);
 
-  // Treasury USDC = DAO wallet + Meteora pool USDC reserves
-  // The ammWallet/ammWallet2 RPC calls may return 0 for Meteora pools since USDC
-  // is held by the pool program, not the pool address. Meteora API gives accurate reserves.
-  // Use the higher of RPC balance vs Meteora reserve to avoid double-counting
-  const poolUSDC = meteoraPool.usdc + meteoraPoolLegacy.usdc;
-  const rpcAmmUSDC = ammUSDC + amm2USDC;
-  const ammUSDCFinal = Math.max(poolUSDC, rpcAmmUSDC);
-  const treasuryUSDC = daoUSDC + ammUSDCFinal;
+  // Treasury USDC = DAO wallet + Futarchy AMM USDC + Meteora pool USDC
+  const metPoolUSDC = metPool.usdc + metPoolLegacy.usdc;
+  const metAmmUSDCFinal = Math.max(metAmmUSDC, metPoolUSDC);
+  const treasuryUSDC = daoUSDC + futAmmUSDC + metAmmUSDCFinal;
 
-  // AMM tokens from Meteora pool reserves (tokens locked in pool, not eligible for NAV)
-  const poolTokens = meteoraPool.token + meteoraPoolLegacy.token;
-  const rpcAmmTokens = ammTokens + amm2Tokens + amm2VaultTokens;
-  const totalAMM = Math.max(poolTokens, rpcAmmTokens);
+  // AMM tokens: all tokens locked in AMMs (not eligible for NAV)
+  const metPoolTokens = metPool.token + metPoolLegacy.token;
+  const totalAMM = futAmmTokens + Math.max(metAmmTokens, metPoolTokens);
 
   const totalSupply = onChainSupply > 0 ? onChainSupply : token.supply;
 
-  // Calculate still-locked investor tokens (monthly unlock, assume sold on unlock)
+  // Calculate still-locked investor tokens (monthly unlock)
   let investorLocked = 0;
   if (token.investorVesting) {
     const v = token.investorVesting;
@@ -206,7 +208,7 @@ async function fetchTokenData(key, token) {
     investorLocked = Math.max(0, v.total - unlocked);
   }
 
-  const effectiveSupply = Math.max(1, totalSupply - lockedTokens - totalAMM - daoTokens - buybackTokens - multisigTokens - investorLocked);
+  const effectiveSupply = Math.max(1, totalSupply - lockedTokens - totalAMM - daoTokens - buybackTokens - metaHoldingTokens - investorLocked);
   const nav = treasuryUSDC / effectiveSupply;
 
   return {
@@ -217,14 +219,16 @@ async function fetchTokenData(key, token) {
     onChainSupply: Math.round(onChainSupply),
     lockedTokens: Math.round(lockedTokens),
     ammTokens: Math.round(totalAMM),
+    futAmmTokens: Math.round(futAmmTokens),
+    metAmmTokens: Math.round(Math.max(metAmmTokens, metPoolTokens)),
     daoTokens: Math.round(daoTokens),
     buybackTokens: Math.round(buybackTokens),
-    multisigTokens: Math.round(multisigTokens),
+    metaHoldingTokens: Math.round(metaHoldingTokens),
     investorLocked: Math.round(investorLocked),
     effectiveSupply: Math.round(effectiveSupply),
     nav: Math.round(nav * 1000000) / 1000000,
-    meteoraPoolUSDC: Math.round(poolUSDC * 100) / 100,
-    meteoraPoolTokens: Math.round(poolTokens),
+    meteoraPoolUSDC: Math.round(metAmmUSDCFinal * 100) / 100,
+    meteoraPoolTokens: Math.round(metPoolTokens),
     timestamp: new Date().toISOString(),
   };
 }
