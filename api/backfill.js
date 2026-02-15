@@ -253,7 +253,7 @@ module.exports = async function handler(req, res) {
     // Start from full raise amount, subtract only real outflows (not pool seeding)
     // Pool-seeding transfers go to AMM wallets — those are still treasury, not spending
     const ammAddresses = new Set([
-      token.ammWallet, token.ammWallet2, token.gtPool, token.gtPoolLegacy
+      token.ammWallet, token.ammWallet2, token.meteoraPool, token.meteoraPoolLegacy
     ].filter(Boolean).map(a => a.toLowerCase()));
 
     // Separate real outflows (allowance payments) from pool seeding
@@ -276,18 +276,22 @@ module.exports = async function handler(req, res) {
     // Any inflows after TGE (governance returns, etc.) are edge cases we can add later
     const raise = token.raise || 0;
     const tgeDate = token.tge || transfers[0].date.toISOString().split('T')[0];
-    const effectiveSupply = currentData.effectiveSupply;
+    // Use ICO supply for backfill — this is the effective supply at TGE
+    // The daily cron captures actual current supply going forward
+    const effectiveSupply = token.supply;
 
     const dailyBalances = {};
     let treasury = raise;
     let txIdx = 0;
     const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
     const startDate = new Date(tgeDate);
 
     // Sort real outflows by time
     realOutflows.sort((a, b) => a.timestamp - b.timestamp);
 
-    for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(startDate); d <= yesterday; d.setDate(d.getDate() + 1)) {
       const dayKey = d.toISOString().split('T')[0];
 
       // Apply all real outflows that happened on this day
