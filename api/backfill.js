@@ -271,13 +271,12 @@ module.exports = async function handler(req, res) {
       return true;
     });
 
-    // Build daily treasury: start at raise, apply real transfers day by day
+    // Build daily treasury: start at raise, only subtract real outflows
+    // We DON'T add inflows because the raise amount already includes the initial deposit
+    // Any inflows after TGE (governance returns, etc.) are edge cases we can add later
     const raise = token.raise || 0;
     const tgeDate = token.tge || transfers[0].date.toISOString().split('T')[0];
     const effectiveSupply = currentData.effectiveSupply;
-
-    // Combine and sort real transfers
-    const realTransfers = [...realOutflows, ...realInflows].sort((a, b) => a.timestamp - b.timestamp);
 
     const dailyBalances = {};
     let treasury = raise;
@@ -285,19 +284,18 @@ module.exports = async function handler(req, res) {
     const today = new Date();
     const startDate = new Date(tgeDate);
 
+    // Sort real outflows by time
+    realOutflows.sort((a, b) => a.timestamp - b.timestamp);
+
     for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
       const dayKey = d.toISOString().split('T')[0];
 
-      // Apply all real transfers that happened on this day
-      while (txIdx < realTransfers.length) {
-        const txDay = realTransfers[txIdx].date.toISOString().split('T')[0];
+      // Apply all real outflows that happened on this day
+      while (txIdx < realOutflows.length) {
+        const txDay = realOutflows[txIdx].date.toISOString().split('T')[0];
         if (txDay > dayKey) break;
         if (txDay === dayKey) {
-          if (realTransfers[txIdx].direction === 'in') {
-            treasury += realTransfers[txIdx].amount;
-          } else {
-            treasury -= realTransfers[txIdx].amount;
-          }
+          treasury -= realOutflows[txIdx].amount;
         }
         txIdx++;
       }
