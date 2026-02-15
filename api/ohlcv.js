@@ -24,7 +24,7 @@ module.exports = async function handler(req, res) {
   try {
     const url = `https://public-api.birdeye.so/defi/ohlcv?address=${mint}&type=${birdeyeTF}&time_from=${time_from}&time_to=${time_to}`;
     const resp = await fetch(url, {
-      headers: { 'X-API-KEY': apiKey },
+      headers: { 'X-API-KEY': apiKey, 'x-chain': 'solana' },
     });
 
     if (!resp.ok) {
