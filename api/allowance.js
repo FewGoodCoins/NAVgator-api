@@ -14,12 +14,12 @@ module.exports = async function handler(req, res) {
   if (!token) return res.status(400).json({ error: 'Missing ?token= parameter' });
 
   try {
-    // Get all inflows for this token
+    // Get all outflows (allowance payments) for this token
     const { data, error } = await supabase
       .from('usdc_transfers')
       .select('amount, tx_date, signature')
       .eq('token', token)
-      .eq('direction', 'in')
+      .eq('direction', 'out')
       .order('tx_date', { ascending: true });
 
     if (error) return res.status(500).json({ error: error.message });
