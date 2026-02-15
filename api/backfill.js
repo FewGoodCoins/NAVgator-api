@@ -249,25 +249,70 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Step 3: Reconstruct daily DAO balances
-    // We use daoUSDC portion only (from current data, subtract AMM portion)
-    const daoOnlyUSDC = currentData.treasuryUSDC - (currentData.meteoraPoolUSDC || 0);
-    const dailyBalances = reconstructDailyBalances(transfers, daoOnlyUSDC);
+    // Step 3: Reconstruct daily treasury using raise-based approach
+    // Start from full raise amount, subtract only real outflows (not pool seeding)
+    // Pool-seeding transfers go to AMM wallets — those are still treasury, not spending
+    const ammAddresses = new Set([
+      token.ammWallet, token.ammWallet2, token.gtPool, token.gtPoolLegacy
+    ].filter(Boolean).map(a => a.toLowerCase()));
 
-    // Step 4: For each day, calculate NAV
-    // We approximate: total treasury = daoBalance + currentAmmUSDC (AMM stays roughly stable)
-    // effective supply stays at current value (changes slowly)
-    const ammUSDC = currentData.meteoraPoolUSDC || 0;
+    // Separate real outflows (allowance payments) from pool seeding
+    const realOutflows = transfers.filter(t => {
+      if (t.direction !== 'out') return false;
+      // If USDC went to an AMM/pool address, it's pool seeding, not spending
+      if (t.to && ammAddresses.has(t.to.toLowerCase())) return false;
+      return true;
+    });
+
+    // Also track inflows that aren't from AMM (e.g. returns, governance deposits)
+    const realInflows = transfers.filter(t => {
+      if (t.direction !== 'in') return false;
+      if (t.from && ammAddresses.has(t.from.toLowerCase())) return false;
+      return true;
+    });
+
+    // Build daily treasury: start at raise, apply real transfers day by day
+    const raise = token.raise || 0;
+    const tgeDate = token.tge || transfers[0].date.toISOString().split('T')[0];
     const effectiveSupply = currentData.effectiveSupply;
-    
+
+    // Combine and sort real transfers
+    const realTransfers = [...realOutflows, ...realInflows].sort((a, b) => a.timestamp - b.timestamp);
+
+    const dailyBalances = {};
+    let treasury = raise;
+    let txIdx = 0;
+    const today = new Date();
+    const startDate = new Date(tgeDate);
+
+    for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+      const dayKey = d.toISOString().split('T')[0];
+
+      // Apply all real transfers that happened on this day
+      while (txIdx < realTransfers.length) {
+        const txDay = realTransfers[txIdx].date.toISOString().split('T')[0];
+        if (txDay > dayKey) break;
+        if (txDay === dayKey) {
+          if (realTransfers[txIdx].direction === 'in') {
+            treasury += realTransfers[txIdx].amount;
+          } else {
+            treasury -= realTransfers[txIdx].amount;
+          }
+        }
+        txIdx++;
+      }
+
+      dailyBalances[dayKey] = Math.max(0, treasury);
+    }
+
+    // Step 4: For each day, calculate NAV = treasury / effectiveSupply
     const snapshots = [];
-    for (const [dateStr, daoBalance] of Object.entries(dailyBalances)) {
-      const treasury = daoBalance + ammUSDC;
-      const nav = treasury / effectiveSupply;
+    for (const [dateStr, treasuryVal] of Object.entries(dailyBalances)) {
+      const nav = treasuryVal / effectiveSupply;
       snapshots.push({
         token: tokenKey,
-        spot: 0, // we don't have historical spot from this method
-        treasury_usdc: Math.round(treasury * 100) / 100,
+        spot: 0,
+        treasury_usdc: Math.round(treasuryVal * 100) / 100,
         effective_supply: effectiveSupply,
         nav: Math.round(nav * 1000000) / 1000000,
         snapshot_time: dateStr + 'T12:00:00.000Z',
@@ -275,30 +320,37 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // Step 5: Insert into Supabase (skip dates that already have snapshots)
-    let inserted = 0, skipped = 0;
+    // Step 5: Insert into Supabase (skip dates that already have non-backfill snapshots)
+    const force = req.query.force === 'true';
+    let inserted = 0, skipped = 0, updated = 0;
     for (const snap of snapshots) {
-      // Check if snapshot already exists for this token+date
       const dateStart = snap.snapshot_time.split('T')[0] + 'T00:00:00.000Z';
       const dateEnd = snap.snapshot_time.split('T')[0] + 'T23:59:59.999Z';
       
       const { data: existing } = await supabase
         .from('nav_snapshots')
-        .select('id')
+        .select('id, is_backfill')
         .eq('token', tokenKey)
         .gte('snapshot_time', dateStart)
         .lte('snapshot_time', dateEnd)
         .limit(1);
 
       if (existing && existing.length > 0) {
-        skipped++;
+        if (force && existing[0].is_backfill) {
+          // Overwrite old backfill data
+          const { error } = await supabase.from('nav_snapshots')
+            .update({ treasury_usdc: snap.treasury_usdc, effective_supply: snap.effective_supply, nav: snap.nav })
+            .eq('id', existing[0].id);
+          if (!error) updated++;
+        } else {
+          skipped++;
+        }
         continue;
       }
 
       const { error } = await supabase.from('nav_snapshots').insert(snap);
       if (!error) inserted++;
       
-      // Rate limit Supabase inserts
       if (inserted % 10 === 0) await new Promise(r => setTimeout(r, 100));
     }
 
@@ -319,16 +371,21 @@ module.exports = async function handler(req, res) {
 
     res.status(200).json({
       token: tokenKey,
+      raise: token.raise,
+      tge: token.tge,
       transfers: transfers.length,
+      realOutflows: realOutflows.length,
+      poolSeedingFiltered: transfers.filter(t => t.direction === 'out').length - realOutflows.length,
       transfersSaved,
-      pagesScanned: result.pagesScanned,
-      totalTxnsScanned: result.totalTxns,
       daysReconstructed: Object.keys(dailyBalances).length,
       inserted,
+      updated,
       skipped,
+      force,
       currentNav: currentData.nav,
       firstDate: Object.keys(dailyBalances)[0],
       lastDate: Object.keys(dailyBalances).pop(),
+      firstTreasury: Object.values(dailyBalances)[0],
     });
   } catch (e) {
     res.status(500).json({ error: e.message, stack: e.stack });
