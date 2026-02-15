@@ -14,53 +14,70 @@ module.exports = async function handler(req, res) {
   if (!token) return res.status(400).json({ error: 'Missing ?token= parameter' });
 
   try {
-    // Get all outflows (allowance payments) for this token
+    // Get ALL transfers for this token (both in and out)
     const { data, error } = await supabase
       .from('usdc_transfers')
-      .select('amount, tx_date, signature')
+      .select('amount, tx_date, signature, direction')
       .eq('token', token)
-      .eq('direction', 'out')
       .order('tx_date', { ascending: true });
 
     if (error) return res.status(500).json({ error: error.message });
-    if (!data || data.length < 2) {
+    if (!data || data.length === 0) {
+      return res.status(200).json({ token, message: 'No transfers found' });
+    }
+
+    // Separate inflows and outflows
+    const inflows = data.filter(d => d.direction === 'in');
+    const outflows = data.filter(d => d.direction === 'out');
+
+    // Group outflows by date (combine same-day split payments)
+    const outflowsByDate = {};
+    for (const t of outflows) {
+      const day = t.tx_date.split('T')[0];
+      if (!outflowsByDate[day]) outflowsByDate[day] = { date: day, amount: 0, txCount: 0 };
+      outflowsByDate[day].amount += parseFloat(t.amount);
+      outflowsByDate[day].txCount++;
+    }
+    const payments = Object.values(outflowsByDate)
+      .map(p => ({ ...p, amount: Math.round(p.amount * 100) / 100 }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // Summary stats
+    const totalPaidOut = Math.round(outflows.reduce((s, t) => s + parseFloat(t.amount), 0) * 100) / 100;
+    const totalReceived = Math.round(inflows.reduce((s, t) => s + parseFloat(t.amount), 0) * 100) / 100;
+
+    // Months in production (first transfer to now)
+    const firstDate = new Date(data[0].tx_date);
+    const now = new Date();
+    const monthsLive = Math.round((now - firstDate) / (30.44 * 86400000) * 10) / 10;
+
+    // Need at least 2 grouped payments to detect pattern
+    if (payments.length < 2) {
       return res.status(200).json({
         token,
-        deposits: data || [],
-        message: 'Not enough deposits to detect a pattern (need at least 2)',
+        summary: { totalPaidOut, totalReceived, monthsLive, totalPayments: payments.length },
+        payments,
+        message: 'Not enough payments to detect a pattern',
       });
     }
 
-    // Format deposits
-    const deposits = data.map(d => ({
-      date: d.tx_date.split('T')[0],
-      amount: parseFloat(d.amount),
-      signature: d.signature,
-    }));
-
-    // Calculate intervals between deposits (in days)
+    // Calculate intervals between grouped payments (in days)
     const intervals = [];
-    for (let i = 1; i < deposits.length; i++) {
-      const d1 = new Date(deposits[i - 1].date);
-      const d2 = new Date(deposits[i].date);
+    for (let i = 1; i < payments.length; i++) {
+      const d1 = new Date(payments[i - 1].date);
+      const d2 = new Date(payments[i].date);
       const daysBetween = Math.round((d2 - d1) / 86400000);
       if (daysBetween > 0) intervals.push(daysBetween);
     }
 
-    if (intervals.length === 0) {
-      return res.status(200).json({
-        token,
-        deposits,
-        message: 'Deposits too close together to detect interval',
-      });
-    }
-
-    // Median amount
-    const amounts = deposits.map(d => d.amount).sort((a, b) => a - b);
+    // Payment amounts
+    const amounts = payments.map(p => p.amount).sort((a, b) => a - b);
     const medianAmount = amounts[Math.floor(amounts.length / 2)];
     const avgAmount = Math.round(amounts.reduce((s, a) => s + a, 0) / amounts.length * 100) / 100;
+    const minAmount = amounts[0];
+    const maxAmount = amounts[amounts.length - 1];
 
-    // Median interval
+    // Interval stats (median)
     const sortedIntervals = [...intervals].sort((a, b) => a - b);
     const medianInterval = sortedIntervals[Math.floor(sortedIntervals.length / 2)];
     const avgInterval = Math.round(intervals.reduce((s, i) => s + i, 0) / intervals.length * 10) / 10;
@@ -73,17 +90,16 @@ module.exports = async function handler(req, res) {
     else if (medianInterval >= 55 && medianInterval <= 65) frequency = 'bimonthly';
     else if (medianInterval >= 85 && medianInterval <= 95) frequency = 'quarterly';
 
-    // Predict next deposit
-    const lastDeposit = deposits[deposits.length - 1];
-    const lastDate = new Date(lastDeposit.date);
+    // Predict next payment
+    const lastPayment = payments[payments.length - 1];
+    const lastDate = new Date(lastPayment.date);
     const nextDate = new Date(lastDate);
     nextDate.setDate(nextDate.getDate() + medianInterval);
 
-    const now = new Date();
     const daysUntilNext = Math.round((nextDate - now) / 86400000);
     const daysSinceLast = Math.round((now - lastDate) / 86400000);
 
-    // Consistency score: how regular are the intervals?
+    // Consistency score
     const intervalVariance = intervals.reduce((s, i) => s + Math.pow(i - avgInterval, 2), 0) / intervals.length;
     const intervalStdDev = Math.sqrt(intervalVariance);
     const consistency = Math.max(0, Math.min(100, Math.round(100 - intervalStdDev * 5)));
@@ -91,17 +107,26 @@ module.exports = async function handler(req, res) {
     res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=300');
     res.status(200).json({
       token,
+      summary: {
+        totalPaidOut,
+        totalReceived,
+        monthsLive,
+        totalPayments: payments.length,
+        avgPaymentPerMonth: Math.round(totalPaidOut / Math.max(monthsLive, 1) * 100) / 100,
+      },
       schedule: {
         frequency,
         intervalDays: medianInterval,
         avgIntervalDays: avgInterval,
         typicalAmount: medianAmount,
         avgAmount,
+        minAmount,
+        maxAmount,
         consistency,
       },
-      lastDeposit: {
-        date: lastDeposit.date,
-        amount: lastDeposit.amount,
+      lastPayment: {
+        date: lastPayment.date,
+        amount: lastPayment.amount,
         daysAgo: daysSinceLast,
       },
       nextPredicted: {
@@ -110,8 +135,7 @@ module.exports = async function handler(req, res) {
         daysUntil: daysUntilNext,
         overdue: daysUntilNext < 0,
       },
-      totalDeposits: deposits.length,
-      deposits,
+      payments,
       intervals,
     });
   } catch (e) {
