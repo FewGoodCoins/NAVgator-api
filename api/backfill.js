@@ -305,7 +305,6 @@ module.exports = async function handler(req, res) {
     // Step 6: Save raw transfers to usdc_transfers table
     let transfersSaved = 0;
     for (const t of transfers) {
-      if (t.direction !== 'in') continue; // only save inflows for allowance tracking
       try {
         const { error } = await supabase.from('usdc_transfers').upsert({
           token: tokenKey,
