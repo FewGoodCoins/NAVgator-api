@@ -14,66 +14,53 @@ module.exports = async function handler(req, res) {
   if (!token) return res.status(400).json({ error: 'Missing ?token= parameter' });
 
   try {
-    // Get all snapshots for this token ordered by date
+    // Get all inflows for this token
     const { data, error } = await supabase
-      .from('nav_snapshots')
-      .select('treasury_usdc, snapshot_time')
+      .from('usdc_transfers')
+      .select('amount, tx_date, signature')
       .eq('token', token)
-      .order('snapshot_time', { ascending: true });
+      .eq('direction', 'in')
+      .order('tx_date', { ascending: true });
 
     if (error) return res.status(500).json({ error: error.message });
     if (!data || data.length < 2) {
-      return res.status(200).json({ token, message: 'Not enough data to detect pattern' });
-    }
-
-    // Deduplicate to one per day (keep latest)
-    const byDay = {};
-    for (const row of data) {
-      const day = row.snapshot_time.split('T')[0];
-      byDay[day] = row;
-    }
-    const days = Object.keys(byDay).sort();
-
-    // Detect significant USDC inflows (treasury jumps)
-    const inflows = [];
-    for (let i = 1; i < days.length; i++) {
-      const prev = byDay[days[i - 1]].treasury_usdc;
-      const curr = byDay[days[i]].treasury_usdc;
-      const diff = curr - prev;
-      // Only count inflows > $100 (filter noise)
-      if (diff > 100) {
-        inflows.push({
-          date: days[i],
-          amount: Math.round(diff * 100) / 100,
-          treasuryBefore: Math.round(prev * 100) / 100,
-          treasuryAfter: Math.round(curr * 100) / 100,
-        });
-      }
-    }
-
-    if (inflows.length < 2) {
       return res.status(200).json({
         token,
-        inflows,
-        message: 'Not enough inflows to detect a pattern (need at least 2)',
+        deposits: data || [],
+        message: 'Not enough deposits to detect a pattern (need at least 2)',
       });
     }
 
-    // Calculate intervals between inflows (in days)
+    // Format deposits
+    const deposits = data.map(d => ({
+      date: d.tx_date.split('T')[0],
+      amount: parseFloat(d.amount),
+      signature: d.signature,
+    }));
+
+    // Calculate intervals between deposits (in days)
     const intervals = [];
-    for (let i = 1; i < inflows.length; i++) {
-      const d1 = new Date(inflows[i - 1].date);
-      const d2 = new Date(inflows[i].date);
+    for (let i = 1; i < deposits.length; i++) {
+      const d1 = new Date(deposits[i - 1].date);
+      const d2 = new Date(deposits[i].date);
       const daysBetween = Math.round((d2 - d1) / 86400000);
-      intervals.push(daysBetween);
+      if (daysBetween > 0) intervals.push(daysBetween);
     }
 
-    // Detect the typical amount (median of inflow amounts)
-    const amounts = inflows.map(f => f.amount).sort((a, b) => a - b);
+    if (intervals.length === 0) {
+      return res.status(200).json({
+        token,
+        deposits,
+        message: 'Deposits too close together to detect interval',
+      });
+    }
+
+    // Median amount
+    const amounts = deposits.map(d => d.amount).sort((a, b) => a - b);
     const medianAmount = amounts[Math.floor(amounts.length / 2)];
     const avgAmount = Math.round(amounts.reduce((s, a) => s + a, 0) / amounts.length * 100) / 100;
 
-    // Detect the typical interval (median)
+    // Median interval
     const sortedIntervals = [...intervals].sort((a, b) => a - b);
     const medianInterval = sortedIntervals[Math.floor(sortedIntervals.length / 2)];
     const avgInterval = Math.round(intervals.reduce((s, i) => s + i, 0) / intervals.length * 10) / 10;
@@ -86,16 +73,17 @@ module.exports = async function handler(req, res) {
     else if (medianInterval >= 55 && medianInterval <= 65) frequency = 'bimonthly';
     else if (medianInterval >= 85 && medianInterval <= 95) frequency = 'quarterly';
 
-    // Predict next allowance
-    const lastInflow = inflows[inflows.length - 1];
-    const lastDate = new Date(lastInflow.date);
+    // Predict next deposit
+    const lastDeposit = deposits[deposits.length - 1];
+    const lastDate = new Date(lastDeposit.date);
     const nextDate = new Date(lastDate);
     nextDate.setDate(nextDate.getDate() + medianInterval);
 
     const now = new Date();
     const daysUntilNext = Math.round((nextDate - now) / 86400000);
+    const daysSinceLast = Math.round((now - lastDate) / 86400000);
 
-    // Confidence: how consistent are the intervals?
+    // Consistency score: how regular are the intervals?
     const intervalVariance = intervals.reduce((s, i) => s + Math.pow(i - avgInterval, 2), 0) / intervals.length;
     const intervalStdDev = Math.sqrt(intervalVariance);
     const consistency = Math.max(0, Math.min(100, Math.round(100 - intervalStdDev * 5)));
@@ -109,12 +97,12 @@ module.exports = async function handler(req, res) {
         avgIntervalDays: avgInterval,
         typicalAmount: medianAmount,
         avgAmount,
-        consistency, // 0-100, higher = more predictable
+        consistency,
       },
       lastDeposit: {
-        date: lastInflow.date,
-        amount: lastInflow.amount,
-        daysAgo: Math.round((now - lastDate) / 86400000),
+        date: lastDeposit.date,
+        amount: lastDeposit.amount,
+        daysAgo: daysSinceLast,
       },
       nextPredicted: {
         date: nextDate.toISOString().split('T')[0],
@@ -122,7 +110,8 @@ module.exports = async function handler(req, res) {
         daysUntil: daysUntilNext,
         overdue: daysUntilNext < 0,
       },
-      history: inflows,
+      totalDeposits: deposits.length,
+      deposits,
       intervals,
     });
   } catch (e) {
