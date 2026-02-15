@@ -10,6 +10,7 @@ const TOKENS = {
     lockWallet: 'Bo24B7DDVtpa9VxZ4LN8FrAT7TM3cgkri41a5GjFg5Dk',
     gtPool: 'o5rJFXSKTsuws58rBMNPG8jdKdnY4Z7ouU29dyohE4g',
     supply: 10000000,
+    monthlyAllowance: 100000,
   },
   umbra: {
     ticker: 'UMBRA', name: 'Umbra',
@@ -22,6 +23,7 @@ const TOKENS = {
     gtPool: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
     gtPoolLegacy: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
     supply: 10000000,
+    monthlyAllowance: 100000,
   },
   avici: {
     ticker: 'AVICI', name: 'Avicenna',
@@ -33,6 +35,7 @@ const TOKENS = {
     gtPool: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
     gtPoolLegacy: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
     supply: 10000000,
+    monthlyAllowance: 100000,
   },
   omfg: {
     ticker: 'OMFG', name: 'OMFG',
@@ -45,6 +48,7 @@ const TOKENS = {
     gtPool: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
     gtPoolLegacy: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
     supply: 10000000,
+    monthlyAllowance: 50000,
   },
   rngr: {
     ticker: 'RNGR', name: 'Ranger',
@@ -59,6 +63,7 @@ const TOKENS = {
     gtPoolLegacy: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
     supply: 25000000,
     investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
+    monthlyAllowance: 250000,
   },
 };
 
