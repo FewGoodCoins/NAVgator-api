@@ -95,6 +95,23 @@ async function getTokenBalance(mint, owner) {
   } catch (e) { return 0; }
 }
 
+// Read balance of a specific token account (vault) directly
+async function getVaultBalance(tokenAccount) {
+  if (!tokenAccount) return 0;
+  try {
+    const res = await fetch(HELIUS_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'getTokenAccountBalance',
+        params: [tokenAccount],
+      }),
+    });
+    const json = await res.json();
+    return json.result?.value?.uiAmount || 0;
+  } catch (e) { return 0; }
+}
+
 async function getUSDCBalance(usdcMint, owner) {
   return getTokenBalance(usdcMint, owner);
 }
@@ -147,7 +164,7 @@ async function getMeteoraPoolReserves(poolAddress, tokenMint, usdcMint) {
 
 async function fetchTokenData(key, token) {
   // Fetch all data in parallel — include Meteora pool reserves
-  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens, multisigTokens, meteoraPool, meteoraPoolLegacy] = await Promise.all([
+  const [spot, daoUSDC, ammUSDC, amm2USDC, onChainSupply, ammTokens, amm2Tokens, lockedTokens, daoTokens, buybackTokens, multisigTokens, meteoraPool, meteoraPoolLegacy, amm2VaultTokens] = await Promise.all([
     getSpotPrice(token.mint),
     getUSDCBalance(token.usdcMint, token.daoWallet),
     getUSDCBalance(token.usdcMint, token.ammWallet),
@@ -161,6 +178,7 @@ async function fetchTokenData(key, token) {
     getTokenBalance(token.mint, MULTISIG_WALLET),
     getMeteoraPoolReserves(token.meteoraPool, token.mint, token.usdcMint),
     getMeteoraPoolReserves(token.meteoraPoolLegacy, token.mint, token.usdcMint),
+    getVaultBalance(token.ammWallet2),
   ]);
 
   // Treasury USDC = DAO wallet + Meteora pool USDC reserves
@@ -174,7 +192,7 @@ async function fetchTokenData(key, token) {
 
   // AMM tokens from Meteora pool reserves (tokens locked in pool, not eligible for NAV)
   const poolTokens = meteoraPool.token + meteoraPoolLegacy.token;
-  const rpcAmmTokens = ammTokens + amm2Tokens;
+  const rpcAmmTokens = ammTokens + amm2Tokens + amm2VaultTokens;
   const totalAMM = Math.max(poolTokens, rpcAmmTokens);
 
   const totalSupply = onChainSupply > 0 ? onChainSupply : token.supply;
