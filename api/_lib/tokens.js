@@ -10,6 +10,7 @@ const TOKENS = {
     lockWallet: 'Bo24B7DDVtpa9VxZ4LN8FrAT7TM3cgkri41a5GjFg5Dk',
     gtPool: 'o5rJFXSKTsuws58rBMNPG8jdKdnY4Z7ouU29dyohE4g',
     supply: 10000000,
+    raise: 8000000, tge: '2025-11-18', icoPrice: 0.80,
     monthlyAllowance: 100000,
   },
   umbra: {
@@ -23,6 +24,7 @@ const TOKENS = {
     gtPool: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
     gtPoolLegacy: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
     supply: 10000000,
+    raise: 4000000, tge: '2025-10-10', icoPrice: 0.40,
     monthlyAllowance: 100000,
   },
   avici: {
@@ -35,6 +37,7 @@ const TOKENS = {
     gtPool: '5gB4NPgFB3MHFHSeKN4sbaY6t9MB8ikCe9HyiKYid4Td',
     gtPoolLegacy: '3D854kknnQhu9xVaRNV154oZ9oN2WF3tXsq3LDu7fFMn',
     supply: 10000000,
+    raise: 3500000, tge: '2025-10-18', icoPrice: 0.35,
     monthlyAllowance: 100000,
   },
   omfg: {
@@ -48,6 +51,7 @@ const TOKENS = {
     gtPool: 'BiNnErm2VDkbKGiABj9ZRUjybz879NhH2heeWE7m5M6d',
     gtPoolLegacy: '2WNhaB6TPyZ3ynJjAUM4ZZ1Hdeep8FJ3A76FjGjTVjjS',
     supply: 10000000,
+    raise: 500000, tge: '2025-07-28', icoPrice: 0.05,
     monthlyAllowance: 50000,
   },
   rngr: {
@@ -62,6 +66,7 @@ const TOKENS = {
     gtPool: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
     gtPoolLegacy: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
     supply: 25000000,
+    raise: 6000000, tge: '2026-01-10', icoPrice: 0.54,
     investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
     monthlyAllowance: 250000,
   },
