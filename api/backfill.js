@@ -108,7 +108,7 @@ async function parseTransactions(signatures, walletAddress) {
       for (const tx of txns) {
         const tokenTransfers = tx.tokenTransfers || [];
         for (const tt of tokenTransfers) {
-          if (tt.mint === USDC_MINT && (tt.fromUserAccount === walletAddress || tt.toUserAccount === walletAddress)) {
+          if (tt.mint === USDC_MINT && (tt.fromUserAccount === walletAddress || tt.toUserAccount === walletAddress) && tt.tokenAmount >= 1) {
             transfers.push({
               signature: tx.signature,
               timestamp: tx.timestamp,
