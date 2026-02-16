@@ -204,12 +204,33 @@ module.exports = async function handler(req, res) {
   }
 
   const tokenKey = req.query.token;
-  if (!tokenKey || !TOKENS[tokenKey]) {
-    return res.status(400).json({ error: 'Missing or invalid ?token= parameter', available: Object.keys(TOKENS) });
+
+  // Batch mode: run all tokens
+  if (tokenKey === 'all') {
+    const results = {};
+    for (const key of Object.keys(TOKENS)) {
+      try {
+        results[key] = await runBackfill(key, TOKENS[key], req.query.force === 'true');
+      } catch (e) {
+        results[key] = { error: e.message };
+      }
+    }
+    return res.status(200).json({ mode: 'batch', results });
   }
 
-  const token = TOKENS[tokenKey];
+  if (!tokenKey || !TOKENS[tokenKey]) {
+    return res.status(400).json({ error: 'Missing or invalid ?token= parameter. Use ?token=all for batch.', available: Object.keys(TOKENS) });
+  }
 
+  try {
+    const result = await runBackfill(tokenKey, TOKENS[tokenKey], req.query.force === 'true');
+    res.status(200).json(result);
+  } catch (e) {
+    res.status(500).json({ error: e.message, stack: e.stack });
+  }
+};
+
+async function runBackfill(tokenKey, token, force) {
   try {
     // Step 1: Get current treasury balance for calibration
     const { fetchTokenData } = require('./_lib/tokens');
@@ -237,7 +258,7 @@ module.exports = async function handler(req, res) {
         debugError = debugJson.error || null;
       } catch (e) { debugError = e.message; }
 
-      return res.status(200).json({ 
+      return { 
         token: tokenKey, 
         message: 'No USDC transfers found for DAO wallet',
         daoWallet: token.daoWallet,
@@ -246,14 +267,14 @@ module.exports = async function handler(req, res) {
         debugSigsForATA: debugSigs,
         debugError,
         heliusRpcPrefix: HELIUS_RPC.substring(0, 40) + '...',
-      });
+      };
     }
 
     // Step 3: Reconstruct daily treasury using raise-based approach
     // Start from full raise amount, subtract only real outflows (not pool seeding)
     // Pool-seeding transfers go to AMM wallets — those are still treasury, not spending
     const ammAddresses = new Set([
-      token.ammWallet, token.ammWallet2, token.meteoraPool, token.meteoraPoolLegacy
+      token.futAmm, token.metAmm, token.pubMetPool, token.pubMetPoolLegacy
     ].filter(Boolean).map(a => a.toLowerCase()));
 
     // Separate real outflows (allowance payments) from pool seeding
@@ -276,9 +297,9 @@ module.exports = async function handler(req, res) {
     // Any inflows after TGE (governance returns, etc.) are edge cases we can add later
     const raise = token.raise || 0;
     const tgeDate = token.tge || transfers[0].date.toISOString().split('T')[0];
-    // Use ICO supply for backfill — this is the effective supply at TGE
-    // The daily cron captures actual current supply going forward
-    const effectiveSupply = token.supply;
+    // Use current effective supply for backfill — matches the live cron snapshots
+    // This gives consistent NAV between backfill and live data
+    const effectiveSupply = currentData.effectiveSupply;
 
     const dailyBalances = {};
     let treasury = raise;
@@ -323,7 +344,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Step 5: Insert into Supabase (skip dates that already have non-backfill snapshots)
-    const force = req.query.force === 'true';
+    const forceUpdate = force;
     let inserted = 0, skipped = 0, updated = 0;
     for (const snap of snapshots) {
       const dateStart = snap.snapshot_time.split('T')[0] + 'T00:00:00.000Z';
@@ -338,7 +359,7 @@ module.exports = async function handler(req, res) {
         .limit(1);
 
       if (existing && existing.length > 0) {
-        if (force && existing[0].is_backfill) {
+        if (forceUpdate && existing[0].is_backfill) {
           // Overwrite old backfill data
           const { error } = await supabase.from('nav_snapshots')
             .update({ treasury_usdc: snap.treasury_usdc, effective_supply: snap.effective_supply, nav: snap.nav })
@@ -371,7 +392,7 @@ module.exports = async function handler(req, res) {
       } catch (e) {}
     }
 
-    res.status(200).json({
+    return {
       token: tokenKey,
       raise: token.raise,
       tge: token.tge,
@@ -383,13 +404,13 @@ module.exports = async function handler(req, res) {
       inserted,
       updated,
       skipped,
-      force,
+      forceUpdate,
       currentNav: currentData.nav,
       firstDate: Object.keys(dailyBalances)[0],
       lastDate: Object.keys(dailyBalances).pop(),
       firstTreasury: Object.values(dailyBalances)[0],
-    });
+    };
   } catch (e) {
-    res.status(500).json({ error: e.message, stack: e.stack });
+    return { token: tokenKey, error: e.message };
   }
-};
+}
