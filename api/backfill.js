@@ -400,19 +400,22 @@ async function runBackfill(tokenKey, token, force) {
       token: tokenKey,
       raise: token.raise,
       tge: token.tge,
+      icoPrice: token.icoPrice,
       transfers: transfers.length,
       realOutflows: realOutflows.length,
       poolSeedingFiltered: transfers.filter(t => t.direction === 'out').length - realOutflows.length,
       transfersSaved,
-      daysReconstructed: Object.keys(dailyBalances).length,
+      snapshots: snapshots.length,
       inserted,
-      updated,
       skipped,
       forceUpdate,
       currentNav: currentData.nav,
-      firstDate: Object.keys(dailyBalances)[0],
-      lastDate: Object.keys(dailyBalances).pop(),
-      firstTreasury: Object.values(dailyBalances)[0],
+      snapshotDetails: snapshots.map(s => ({
+        date: s.snapshot_time.split('T')[0],
+        treasury: s.treasury_usdc,
+        effSupply: s.effective_supply,
+        nav: s.nav,
+      })),
     };
   } catch (e) {
     return { token: tokenKey, error: e.message };
