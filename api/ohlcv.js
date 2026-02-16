@@ -16,7 +16,7 @@ module.exports = async function handler(req, res) {
   }
 
   const tokenConfig = TOKENS[token];
-  const poolAddress = tokenConfig.meteoraPool;
+  const poolAddress = tokenConfig.tradingPool || tokenConfig.pubMetPool;
   if (!poolAddress) {
     return res.status(400).json({ error: 'No pool address configured for ' + token });
   }
