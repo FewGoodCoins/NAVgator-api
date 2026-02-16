@@ -37,7 +37,7 @@ const TOKENS = {
     tradingPool: '7dVri3qjYD3uobSZL3Zth8vSCgU6r6R2nvFsh7uVfDte',
     pubMetPoolLegacy: 'BLkBSE96kQys7SrMioKxeMiVbeo4Ckk2Y4n1JphKxYnv',
     supply: 10000000,
-    raise: 4000000, tge: '2025-10-10', icoPrice: 0.40,
+    raise: 3000000, tge: '2025-10-10', icoPrice: 0.30,
     monthlyAllowance: 100000,
   },
   avici: {
@@ -84,7 +84,8 @@ const TOKENS = {
     pubMetPool: '59WuweKV7DAg8aUgRhNytScQxioaFYNJdWnox5FxAXFq',
     tradingPool: 'CrUTwtCzhZx3aPeD2QNRfvWJo1JNKudGrzMFYvMrtj7d',
     pubMetPoolLegacy: '1PAwyDkWNFCcR96GhEReXHJBv3YEFVazCaQgNicVuKv',
-    supply: 25000000,
+    supply: 25625000,
+    icoSupply: 10000000,
     raise: 8000000, tge: '2026-01-10', icoPrice: 0.80,
     investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
     monthlyAllowance: 250000,
