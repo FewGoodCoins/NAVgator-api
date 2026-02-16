@@ -34,7 +34,8 @@ async function getAllSignatures(address) {
       if (sigs.length === 0) break;
       allSigs.push(...sigs);
       beforeSig = sigs[sigs.length - 1].signature;
-      await new Promise(r => setTimeout(r, 200));
+      if (sigs.length < 1000) break; // last page
+      await new Promise(r => setTimeout(r, 50));
     } catch (e) { break; }
   }
   return allSigs;
@@ -65,7 +66,7 @@ async function parseTransactionBatch(sigStrings) {
           });
         }
       }
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise(r => setTimeout(r, 100));
     } catch (e) { console.error('Parse error:', e.message); }
   }
   return allTransfers;
@@ -133,12 +134,17 @@ async function runBackfillV2(tokenKey, token, force) {
   if (token.teamLocked) addressesToScan.add(token.teamLocked);
   if (token.buybackWallet) addressesToScan.add(token.buybackWallet);
 
-  // Step 3: Pull all signatures for all addresses
+  // Step 3: Pull all signatures for all addresses IN PARALLEL
   const allSigStrings = new Set();
-  for (const addr of addressesToScan) {
-    const sigs = await getAllSignatures(addr);
+  const scanResults = await Promise.all(
+    [...addressesToScan].map(async (addr) => {
+      const sigs = await getAllSignatures(addr);
+      console.log(`[${tokenKey}] ${addr.substring(0, 8)}... → ${sigs.length} sigs`);
+      return sigs;
+    })
+  );
+  for (const sigs of scanResults) {
     for (const s of sigs) allSigStrings.add(s.signature);
-    console.log(`[${tokenKey}] ${addr.substring(0, 8)}... → ${sigs.length} sigs`);
   }
 
   // Step 4: Parse all unique transactions
@@ -174,9 +180,10 @@ async function runBackfillV2(tokenKey, token, force) {
     ? buildBalanceTimeline(allTransfers, token.buybackWallet, token.mint, current.buybackTokens || 0)
     : { events: [], startBalance: 0 };
 
-  // Step 6: Find DAO USDC outflow events (triggers for NAV snapshots)
+  // Step 6: Find significant DAO USDC outflow events (triggers for NAV snapshots)
+  const minAmount = (token.monthlyAllowance || 10000) * 0.10;
   const daoOutflows = allTransfers
-    .filter(t => t.mint === USDC_MINT && t.from === token.daoWallet && t.amount >= 1)
+    .filter(t => t.mint === USDC_MINT && t.from === token.daoWallet && t.amount >= minAmount)
     .sort((a, b) => a.timestamp - b.timestamp);
 
   console.log(`[${tokenKey}] Found ${daoOutflows.length} DAO USDC outflows`);
@@ -199,7 +206,7 @@ async function runBackfillV2(tokenKey, token, force) {
     team_locked_tokens: 0,
     dao_tokens: 0,
     buyback_tokens: 0,
-    effective_supply: token.supply,
+    effective_supply: token.icoSupply || token.supply,
     nav: token.icoPrice,
     trigger: 'TGE',
   });
