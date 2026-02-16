@@ -270,86 +270,100 @@ async function runBackfill(tokenKey, token, force) {
       };
     }
 
-    // Step 3: Reconstruct daily treasury using raise-based approach
-    // Start from full raise amount, subtract only real outflows (not pool seeding)
+    // Step 3: Reconstruct treasury using raise-based approach
     // Pool-seeding transfers go to AMM wallets — those are still treasury, not spending
     const ammAddresses = new Set([
       token.futAmm, token.metAmm, token.pubMetPool, token.pubMetPoolLegacy
     ].filter(Boolean).map(a => a.toLowerCase()));
 
-    // Separate real outflows (allowance payments) from pool seeding
     const realOutflows = transfers.filter(t => {
       if (t.direction !== 'out') return false;
-      // If USDC went to an AMM/pool address, it's pool seeding, not spending
       if (t.to && ammAddresses.has(t.to.toLowerCase())) return false;
       return true;
     });
-
-    // Also track inflows that aren't from AMM (e.g. returns, governance deposits)
-    const realInflows = transfers.filter(t => {
-      if (t.direction !== 'in') return false;
-      if (t.from && ammAddresses.has(t.from.toLowerCase())) return false;
-      return true;
-    });
-
-    // Build daily treasury: start at raise, only subtract real outflows
-    // We DON'T add inflows because the raise amount already includes the initial deposit
-    // Any inflows after TGE (governance returns, etc.) are edge cases we can add later
-    const raise = token.raise || 0;
-    const tgeDate = token.tge || transfers[0].date.toISOString().split('T')[0];
-    // Use current effective supply for backfill — matches the live cron snapshots
-    // This gives consistent NAV between backfill and live data
-    const effectiveSupply = currentData.effectiveSupply;
-
-    const dailyBalances = {};
-    let treasury = raise;
-    let txIdx = 0;
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const startDate = new Date(tgeDate);
-
-    // Sort real outflows by time
     realOutflows.sort((a, b) => a.timestamp - b.timestamp);
 
-    for (let d = new Date(startDate); d <= yesterday; d.setDate(d.getDate() + 1)) {
-      const dayKey = d.toISOString().split('T')[0];
+    const raise = token.raise || 0;
+    const tgeDate = token.tge || transfers[0].date.toISOString().split('T')[0];
+    const tgeTs = Math.floor(new Date(tgeDate + 'T00:00:00Z').getTime() / 1000);
+    const nowTs = Math.floor(Date.now() / 1000);
+    const totalDays = (nowTs - tgeTs) / 86400;
 
-      // Apply all real outflows that happened on this day
-      while (txIdx < realOutflows.length) {
-        const txDay = realOutflows[txIdx].date.toISOString().split('T')[0];
-        if (txDay > dayKey) break;
-        if (txDay === dayKey) {
-          treasury -= realOutflows[txIdx].amount;
-        }
-        txIdx++;
-      }
+    // Effective supply at TGE was the full ICO supply
+    const tgeSupply = token.supply;
+    const currentEffSupply = currentData.effectiveSupply;
 
-      dailyBalances[dayKey] = Math.max(0, treasury);
+    // Helper: interpolate effective supply between TGE and now
+    // Tokens gradually flowed into AMMs, reducing effective supply over time
+    function effSupplyAt(timestamp) {
+      const daysSinceTge = Math.max(0, (timestamp - tgeTs) / 86400);
+      const progress = Math.min(1, daysSinceTge / totalDays);
+      return tgeSupply + (currentEffSupply - tgeSupply) * progress;
     }
 
-    // Step 4: For each day, calculate NAV = treasury / effectiveSupply
+    // Step 4: Build event-driven snapshots
+    // Only create snapshots at: TGE, each outflow event, and today
     const snapshots = [];
-    for (const [dateStr, treasuryVal] of Object.entries(dailyBalances)) {
-      const nav = treasuryVal / effectiveSupply;
+
+    // TGE snapshot: pinned to ICO price
+    snapshots.push({
+      token: tokenKey,
+      spot: 0,
+      treasury_usdc: raise,
+      effective_supply: tgeSupply,
+      nav: token.icoPrice,
+      snapshot_time: tgeDate + 'T12:00:00.000Z',
+      is_backfill: true,
+    });
+
+    // Snapshot at each real outflow event
+    let treasury = raise;
+    for (const outflow of realOutflows) {
+      treasury -= outflow.amount;
+      treasury = Math.max(0, treasury);
+      const effSup = Math.round(effSupplyAt(outflow.timestamp));
+      const nav = treasury / effSup;
+      const dateStr = outflow.date.toISOString().split('T')[0];
+
       snapshots.push({
         token: tokenKey,
         spot: 0,
-        treasury_usdc: Math.round(treasuryVal * 100) / 100,
-        effective_supply: effectiveSupply,
+        treasury_usdc: Math.round(treasury * 100) / 100,
+        effective_supply: effSup,
         nav: Math.round(nav * 1000000) / 1000000,
         snapshot_time: dateStr + 'T12:00:00.000Z',
         is_backfill: true,
       });
     }
 
-    // Step 5: Insert into Supabase (skip dates that already have non-backfill snapshots)
+    // Final snapshot: current live state (not backfill — will be skipped if cron already ran today)
+    snapshots.push({
+      token: tokenKey,
+      spot: currentData.spot || 0,
+      treasury_usdc: Math.round(currentData.treasuryUSDC * 100) / 100,
+      effective_supply: currentEffSupply,
+      nav: Math.round(currentData.nav * 1000000) / 1000000,
+      snapshot_time: new Date().toISOString().split('T')[0] + 'T12:00:00.000Z',
+      is_backfill: true,
+    });
+
+    // Step 5: Clear old backfill and insert fresh event-driven snapshots
     const forceUpdate = force;
     let inserted = 0, skipped = 0, updated = 0;
+
+    // If force, delete ALL backfill for this token first for clean slate
+    if (forceUpdate) {
+      await supabase
+        .from('nav_snapshots')
+        .delete()
+        .eq('token', tokenKey)
+        .eq('is_backfill', true);
+    }
+
     for (const snap of snapshots) {
       const dateStart = snap.snapshot_time.split('T')[0] + 'T00:00:00.000Z';
       const dateEnd = snap.snapshot_time.split('T')[0] + 'T23:59:59.999Z';
-      
+
       const { data: existing } = await supabase
         .from('nav_snapshots')
         .select('id, is_backfill')
@@ -359,22 +373,12 @@ async function runBackfill(tokenKey, token, force) {
         .limit(1);
 
       if (existing && existing.length > 0) {
-        if (forceUpdate && existing[0].is_backfill) {
-          // Overwrite old backfill data
-          const { error } = await supabase.from('nav_snapshots')
-            .update({ treasury_usdc: snap.treasury_usdc, effective_supply: snap.effective_supply, nav: snap.nav })
-            .eq('id', existing[0].id);
-          if (!error) updated++;
-        } else {
-          skipped++;
-        }
+        skipped++;
         continue;
       }
 
       const { error } = await supabase.from('nav_snapshots').insert(snap);
       if (!error) inserted++;
-      
-      if (inserted % 10 === 0) await new Promise(r => setTimeout(r, 100));
     }
 
     // Step 6: Save raw transfers to usdc_transfers table
