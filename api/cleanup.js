@@ -18,7 +18,6 @@ module.exports = async function handler(req, res) {
   const { data: rows, error: countErr } = await supabase
     .from('nav_snapshots')
     .select('id, token, snapshot_time, nav, is_backfill')
-    .eq('is_backfill', true)
     .lt('snapshot_time', cutoff);
 
   if (countErr) {
@@ -34,11 +33,10 @@ module.exports = async function handler(req, res) {
     });
   }
 
-  // Delete old backfill rows before cutoff
+  // Delete ALL rows before cutoff (both backfill and bad early cron snapshots)
   const { error: delErr } = await supabase
     .from('nav_snapshots')
     .delete()
-    .eq('is_backfill', true)
     .lt('snapshot_time', cutoff);
 
   if (delErr) {
