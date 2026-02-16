@@ -290,7 +290,7 @@ async function runBackfill(tokenKey, token, force) {
     const totalDays = (nowTs - tgeTs) / 86400;
 
     // Effective supply at TGE was the full ICO supply
-    const tgeSupply = token.supply;
+    const tgeSupply = token.icoSupply || token.supply;
     const currentEffSupply = currentData.effectiveSupply;
 
     // Helper: interpolate effective supply between TGE and now
@@ -302,8 +302,9 @@ async function runBackfill(tokenKey, token, force) {
     }
 
     // Step 4: Build event-driven snapshots
-    // Only create snapshots at: TGE, each outflow event, and today
+    // TGE + significant outflows (>10% of monthly allowance) + today
     const snapshots = [];
+    const minAmount = (token.monthlyAllowance || 10000) * 0.10; // 10% of allowance as threshold
 
     // TGE snapshot: pinned to ICO price
     snapshots.push({
@@ -316,11 +317,15 @@ async function runBackfill(tokenKey, token, force) {
       is_backfill: true,
     });
 
-    // Snapshot at each real outflow event
+    // Snapshot at each significant outflow
     let treasury = raise;
     for (const outflow of realOutflows) {
       treasury -= outflow.amount;
       treasury = Math.max(0, treasury);
+
+      // Only create marker for significant outflows
+      if (outflow.amount < minAmount) continue;
+
       const effSup = Math.round(effSupplyAt(outflow.timestamp));
       const nav = treasury / effSup;
       const dateStr = outflow.date.toISOString().split('T')[0];
@@ -336,7 +341,7 @@ async function runBackfill(tokenKey, token, force) {
       });
     }
 
-    // Final snapshot: current live state (not backfill — will be skipped if cron already ran today)
+    // Final snapshot: current live state
     snapshots.push({
       token: tokenKey,
       spot: currentData.spot || 0,
