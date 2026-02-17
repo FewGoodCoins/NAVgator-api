@@ -14,10 +14,10 @@ module.exports = async function handler(req, res) {
 
     const { data, error } = await supabase
       .from('nav_snapshots')
-      .select('token, spot, nav, created_at')
-      .gte('created_at', since)
+      .select('token, spot, nav, snapshot_time')
+      .gte('snapshot_time', since)
       .gt('spot', 0)
-      .order('created_at', { ascending: true });
+      .order('snapshot_time', { ascending: true });
 
     if (error) {
       return res.status(500).json({ error: error.message });
@@ -28,7 +28,7 @@ module.exports = async function handler(req, res) {
     for (const row of data) {
       if (!byToken[row.token]) byToken[row.token] = [];
       byToken[row.token].push({
-        t: Math.floor(new Date(row.created_at).getTime() / 1000),
+        t: Math.floor(new Date(row.snapshot_time).getTime() / 1000),
         p: row.spot,
         n: row.nav,
       });
