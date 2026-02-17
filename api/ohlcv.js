@@ -1,109 +1,31 @@
-const { TOKENS } = require('./_lib/tokens');
+const { TOKENS } = require('./tokens');
 
-// GeckoTerminal OHLCV proxy — returns data in Birdeye-compatible format
-// so the frontend doesn't need changes
+const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY;
+
 module.exports = async function handler(req, res) {
-  // CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') return res.status(200).end();
+  const tokenKey = (req.query.token || '').toLowerCase();
+  const token = TOKENS[tokenKey];
 
-  const { token, tf } = req.query;
-
-  if (!token || !TOKENS[token]) {
-    return res.status(400).json({ error: 'Missing or invalid ?token= parameter', available: Object.keys(TOKENS) });
+  if (!token || !token.mint) {
+    return res.status(400).json({ error: 'Unknown token' });
   }
 
-  const tokenConfig = TOKENS[token];
-  const poolAddress = tokenConfig.tradingPool || tokenConfig.pubMetPool;
-  if (!poolAddress) {
-    return res.status(400).json({ error: 'No pool address configured for ' + token });
-  }
+  const tf = req.query.tf || '1D';
+  const timeFrom = req.query.time_from || Math.floor(Date.now() / 1000) - 180 * 86400;
+  const timeTo = req.query.time_to || Math.floor(Date.now() / 1000);
 
-  // Map our timeframes to GeckoTerminal format
-  // GeckoTerminal: /ohlcv/day?aggregate=1, /ohlcv/hour?aggregate=12, /ohlcv/day?aggregate=7
-  let gtTimeframe = 'day';
-  let gtAggregate = 1;
-  let limit = 365;
-
-  switch (tf) {
-    case '12H':
-      gtTimeframe = 'hour';
-      gtAggregate = 12;
-      limit = 180;
-      break;
-    case '1D':
-      gtTimeframe = 'day';
-      gtAggregate = 1;
-      limit = 365;
-      break;
-    case '1W':
-      gtTimeframe = 'day';
-      gtAggregate = 7;
-      limit = 104;
-      break;
-    case '1M':
-      gtTimeframe = 'day';
-      gtAggregate = 1;
-      limit = 365; // we'll aggregate monthly client-side
-      break;
-    default:
-      gtTimeframe = 'day';
-      gtAggregate = 1;
-      limit = 365;
-  }
+  // Map timeframe to Birdeye format
+  const tfMap = { '12H': '12H', '1D': '1D', '1W': '1W', '1M': '1M' };
+  const birdeyeTF = tfMap[tf] || '1D';
 
   try {
-    const url = `https://api.geckoterminal.com/api/v2/networks/solana/pools/${poolAddress}/ohlcv/${gtTimeframe}?aggregate=${gtAggregate}&limit=${limit}&currency=usd&token=base`;
+    const url = `https://public-api.birdeye.so/defi/ohlcv?address=${token.mint}&type=${birdeyeTF}&time_from=${timeFrom}&time_to=${timeTo}`;
     const resp = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
+      headers: { 'X-API-KEY': BIRDEYE_KEY, 'x-chain': 'solana' },
     });
-
-    if (!resp.ok) {
-      // If base token fails, try quote token
-      const url2 = `https://api.geckoterminal.com/api/v2/networks/solana/pools/${poolAddress}/ohlcv/${gtTimeframe}?aggregate=${gtAggregate}&limit=${limit}&currency=usd&token=quote`;
-      const resp2 = await fetch(url2, {
-        headers: { 'Accept': 'application/json' },
-      });
-      if (!resp2.ok) {
-        return res.status(resp2.status).json({ error: 'GeckoTerminal API returned ' + resp2.status });
-      }
-      const data2 = await resp2.json();
-      const items = convertGeckoToBirdeye(data2, tokenConfig.mint);
-      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
-      return res.status(200).json({ data: { items }, success: true });
-    }
-
     const data = await resp.json();
-    const items = convertGeckoToBirdeye(data, tokenConfig.mint);
-
-    // Cache for 1 hour — daily candles don't change often
-    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
-    res.status(200).json({ data: { items }, success: true });
+    return res.status(200).json(data);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: e.message });
   }
 };
-
-// Convert GeckoTerminal OHLCV format to Birdeye-compatible format
-// GeckoTerminal: ohlcv_list = [[timestamp, open, high, low, close, volume], ...]
-// Birdeye: items = [{unixTime, o, h, l, c, v, address, type, currency}, ...]
-function convertGeckoToBirdeye(geckoData, mint) {
-  const ohlcvList = geckoData?.data?.attributes?.ohlcv_list;
-  if (!ohlcvList || !Array.isArray(ohlcvList)) return [];
-
-  return ohlcvList
-    .map(candle => ({
-      unixTime: candle[0],
-      o: candle[1],
-      h: candle[2],
-      l: candle[3],
-      c: candle[4],
-      v: candle[5],
-      address: mint,
-      type: '1D',
-      currency: 'usd',
-    }))
-    .sort((a, b) => a.unixTime - b.unixTime);
-}
