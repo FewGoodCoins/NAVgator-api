@@ -1,45 +1,60 @@
-const { TOKENS } = require('./tokens');
+const { createClient } = require('@supabase/supabase-js');
 
-const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY;
-
-// In-memory cache — survives across warm invocations
-let _cache = {};
-let _cacheTime = 0;
-const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
 module.exports = async function handler(req, res) {
-  res.setHeader('Cache-Control', 's-maxage=900, stale-while-revalidate=1800');
+  res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=600');
 
-  // Return cache if fresh
-  if (_cacheTime > 0 && Date.now() - _cacheTime < CACHE_TTL && Object.keys(_cache).length > 0) {
-    return res.status(200).json({ sparklines: _cache, cached: true });
-  }
+  try {
+    // Get last 7 days of snapshots
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  const now = Math.floor(Date.now() / 1000);
-  const from = now - 30 * 86400; // 30 days
-  const results = {};
+    const { data, error } = await supabase
+      .from('nav_snapshots')
+      .select('token, spot, nav, created_at')
+      .gte('created_at', since)
+      .gt('spot', 0)
+      .order('created_at', { ascending: true });
 
-  // Fetch all tokens sequentially (Birdeye rate limits)
-  for (const [key, token] of Object.entries(TOKENS)) {
-    if (!token.mint) continue;
-    try {
-      const url = `https://public-api.birdeye.so/defi/ohlcv?address=${token.mint}&type=12H&time_from=${from}&time_to=${now}`;
-      const resp = await fetch(url, {
-        headers: { 'X-API-KEY': BIRDEYE_KEY, 'x-chain': 'solana' },
-      });
-      const data = await resp.json();
-      if (data.data && data.data.items && data.data.items.length > 1) {
-        const items = data.data.items.slice(-60);
-        results[key] = items.map(c => ({ t: c.unixTime, p: c.c }));
-      }
-    } catch (e) {
-      // Skip failed tokens
+    if (error) {
+      return res.status(500).json({ error: error.message });
     }
+
+    // Group by token, downsample to ~60 points per token
+    const byToken = {};
+    for (const row of data) {
+      if (!byToken[row.token]) byToken[row.token] = [];
+      byToken[row.token].push({
+        t: Math.floor(new Date(row.created_at).getTime() / 1000),
+        p: row.spot,
+        n: row.nav,
+      });
+    }
+
+    // Downsample: take every Nth point to get ~60 data points
+    const sparklines = {};
+    for (const [token, points] of Object.entries(byToken)) {
+      if (points.length <= 60) {
+        sparklines[token] = points;
+      } else {
+        const step = Math.floor(points.length / 60);
+        const sampled = [];
+        for (let i = 0; i < points.length; i += step) {
+          sampled.push(points[i]);
+        }
+        // Always include the last point
+        if (sampled[sampled.length - 1] !== points[points.length - 1]) {
+          sampled.push(points[points.length - 1]);
+        }
+        sparklines[token] = sampled;
+      }
+    }
+
+    return res.status(200).json({ sparklines });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
   }
-
-  // Update cache
-  _cache = results;
-  _cacheTime = Date.now();
-
-  return res.status(200).json({ sparklines: results, cached: false });
 };
