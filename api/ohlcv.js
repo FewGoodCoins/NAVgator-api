@@ -15,7 +15,7 @@ module.exports = async function handler(req, res) {
   const timeTo = req.query.time_to || Math.floor(Date.now() / 1000);
 
   // Map timeframe to Birdeye format
-  const tfMap = { '12H': '12H', '1D': '1D', '1W': '1W', '1M': '1M' };
+  const tfMap = { '6H': '6H', '12H': '12H', '1D': '1D', '1W': '1W', '1M': '1M' };
   const birdeyeTF = tfMap[tf] || '1D';
 
   try {
