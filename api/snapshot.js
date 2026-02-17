@@ -44,6 +44,9 @@ module.exports = async function handler(req, res) {
       investor_locked: r.investorLocked,
       meteora_pool_usdc: r.metAmmUSDC,
       meteora_pool_tokens: r.metAmmTokens,
+      dao_usdc: r.daoUSDC,
+      fut_amm_usdc: r.futAmmUSDC,
+      met_amm_usdc: r.metAmmUSDC,
     }));
 
     const { error: insertError } = await supabase
