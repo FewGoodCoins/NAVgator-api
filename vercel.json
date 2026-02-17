@@ -17,6 +17,7 @@
   ],
   "functions": {
     "api/snapshot.js": { "maxDuration": 300 },
+    "api/sparklines.js": { "maxDuration": 120 },
     "api/current.js": { "maxDuration": 30 },
     "api/ohlcv.js": { "maxDuration": 30 }
   }
