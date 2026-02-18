@@ -160,14 +160,28 @@ async function getOnChainSupply(mint) {
   } catch (e) { return 0; }
 }
 
-// Get spot price from DexScreener
+// Get spot price from DexScreener, fallback to Birdeye
 async function getSpotPrice(mint) {
+  // Try DexScreener first
   try {
     const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
     const data = await res.json();
-    const pair = data.pairs?.find(p => p.quoteToken?.symbol === 'USDC');
-    return pair ? parseFloat(pair.priceUsd) : 0;
-  } catch (e) { return 0; }
+    // Look for USDC pair first, then any pair with priceUsd
+    const pair = data.pairs?.find(p => p.quoteToken?.symbol === 'USDC')
+      || data.pairs?.find(p => parseFloat(p.priceUsd) > 0);
+    if (pair && parseFloat(pair.priceUsd) > 0) return parseFloat(pair.priceUsd);
+  } catch (e) {}
+
+  // Fallback: Birdeye
+  try {
+    const res = await fetch(`https://public-api.birdeye.so/defi/price?address=${mint}`, {
+      headers: { 'X-API-KEY': process.env.BIRDEYE_API_KEY || '' }
+    });
+    const data = await res.json();
+    if (data?.data?.value > 0) return data.data.value;
+  } catch (e) {}
+
+  return 0;
 }
 
 // Fetch Meteora DLMM pool reserves via their public API
