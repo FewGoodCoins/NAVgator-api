@@ -74,6 +74,19 @@ const TOKENS = {
     investorVesting: { total: 4356250, months: 24, tge: '2026-01-10' },
     monthlyAllowance: 250000,
   },
+  loyal: {
+    ticker: 'LOYAL', name: 'Loyal',
+    mint: 'LYLikzBQtpa9ZgVrJsqYGQpR3cC1WMJrBHaXGrQmeta',
+    usdcMint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
+    daoWallet: 'AQyyTwCKemeeMu8ZPZFxrXMbVwAYTSbBhi1w4PBrhvYE',
+    futAmm: 'GxpJkPEsPmuRCCTNnfZaDKg4X3gf4ZPgmqgFqtibaPtK',
+    metAmm: 'GHh8ccGPYcB6mBQEsrc6BraMmATckZJAjG1ubRBzARub',
+    metAmmUsdc: '5p1gfTgosp5ANC6PVqKUXNBSNqpLnfLjHT38o3fUKEAe',
+    teamLocked: '9D6ceZNbP5LaYoCco9DFixhnhDV8ngK8ojF9mLsroqx3',
+    buybackWallet: 'AfGAjj7TQByC2WQtCNRhsyq1WeZqmQ7oNRoGb2JbgoQg',
+    pubMetPool: 'GxpJkPEsPmuRCCTNnfZaDKg4X3gf4ZPgmqgFqtibaPtK',
+    monthlyAllowance: 60000,
+  },
 };
 
 // ═══════════════════════════════════════════════════════════════════════
